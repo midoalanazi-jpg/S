@@ -30,6 +30,7 @@ const AdminView = () => {
   const [newTeacherName, setNewTeacherName] = useState('');
   const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [teacherAssignments, setTeacherAssignments] = useState({}); // { classId: [subject1, subject2] }
+  const [teacherLeaderships, setTeacherLeaderships] = useState([]); // Array of classIds
   const [editingScheduleClassId, setEditingScheduleClassId] = useState(null);
   const [tempSchedule, setTempSchedule] = useState({});
   const [weeklyPlans, setWeeklyPlans] = useState([]);
@@ -86,7 +87,8 @@ const AdminView = () => {
       .from('teachers')
       .insert([{ 
         name: newTeacherName, 
-        assignments: teacherAssignments 
+        assignments: teacherAssignments,
+        leader_of: teacherLeaderships
       }])
       .select();
     
@@ -96,6 +98,7 @@ const AdminView = () => {
       setTeachers([...teachers, data[0]]);
       setNewTeacherName('');
       setTeacherAssignments({});
+      setTeacherLeaderships([]);
       setShowTeacherModal(false);
       alert('تم إضافة المعلم بنجاح');
     }
@@ -199,7 +202,14 @@ const AdminView = () => {
       });
     });
 
-    return { ...cls, plans: aggregatedPlans };
+    // Find class leader
+    const classLeader = teachers.find(t => t.leader_of && t.leader_of.includes(cls.id));
+
+    return {
+      ...cls,
+      plans: aggregatedPlans,
+      leaderName: classLeader ? classLeader.name : ''
+    };
   };
 
   const printData = getFullClassData();
@@ -565,7 +575,7 @@ const AdminView = () => {
           <div className="mt-2 text-center text-[10px] font-bold text-slate-700 space-y-2">
             <p>المدرسة جوال: 0545779288</p>
             <div className="flex justify-between pt-2 px-4">
-              <p>رائد الفصل: .........................</p>
+              <p>رائد الفصل: {printData.leaderName || '.........................'}</p>
               <p>مدير المدرسة: فرحان ضحوي العنزي</p>
             </div>
           </div>
@@ -620,6 +630,23 @@ const AdminView = () => {
                           <Layout size={18} />
                         </div>
                         <span className="font-bold text-gray-800">{cls.name}</span>
+                        <div className="mr-auto flex items-center gap-2">
+                          <label className="text-[10px] font-bold text-indigo-500 cursor-pointer flex items-center gap-1">
+                            <input 
+                              type="checkbox"
+                              checked={teacherLeaderships.includes(cls.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setTeacherLeaderships([...teacherLeaderships, cls.id]);
+                                } else {
+                                  setTeacherLeaderships(teacherLeaderships.filter(id => id !== cls.id));
+                                }
+                              }}
+                              className="w-3 h-3 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                            />
+                            ريادة الفصل
+                          </label>
+                        </div>
                       </div>
                       
                       <div className="flex flex-wrap gap-1.5">

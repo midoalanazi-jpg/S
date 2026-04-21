@@ -6,6 +6,7 @@ CREATE TABLE teachers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   assignments JSONB DEFAULT '{}'::jsonb, -- لتخزين { classId: [subjects] }
+  leader_of JSONB DEFAULT '[]'::jsonb, -- لتخزين مصفوفة من IDs الفصول
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
