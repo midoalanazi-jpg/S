@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap');
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-800 antialiased;
+    font-family: 'Cairo', sans-serif;
+    direction: rtl;
+  }
+}
+
+/* Custom styles for tailwind 4 compatibility if needed */
+@theme {
+  --color-primary-50: #f4f7fb;
+  --color-primary-100: #e1e9f4;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+}
