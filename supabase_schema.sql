@@ -1,36 +1,36 @@
--- جدول المعلمين (Teachers)
+-- 1. جدول المعلمين (Teachers) مع دعم إسناد المواد
 CREATE TABLE teachers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
+  assignments JSONB DEFAULT '{}'::jsonb, -- لتخزين { classId: [subjects] }
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- جدول الفصول (Classes)
+-- 2. جدول الفصول (Classes) مع دعم جدول الحصص
 CREATE TABLE classes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
+  schedule JSONB DEFAULT '{}'::jsonb, -- لتخزين { day_period: subject }
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- جدول الخطط الأسبوعية (Weekly Plans)
+-- 3. جدول التحضيرات الأسبوعية (Weekly Plans)
 CREATE TABLE weekly_plans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   teacher_id UUID REFERENCES teachers(id) ON DELETE CASCADE,
   class_id UUID REFERENCES classes(id) ON DELETE CASCADE,
-  week_start_date DATE NOT NULL,
-  data JSONB NOT NULL, -- سيتم تخزين بيانات الحصص هنا ككائن JSON
-  is_submitted BOOLEAN DEFAULT FALSE,
+  week_data JSONB NOT NULL, -- لتخزين محتوى التحضير (العنوان، الأهداف، الواجب)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- بذور البيانات (Seed Data)
--- يمكنك إضافة 18 معلماً و 8 فصول هنا كبداية
-INSERT INTO teachers (name) VALUES 
-('معلم 1'), ('معلم 2'), ('معلم 3'), ('معلم 4'), ('معلم 5'), ('معلم 6'), 
-('معلم 7'), ('معلم 8'), ('معلم 9'), ('معلم 10'), ('معلم 11'), ('معلم 12'), 
-('معلم 13'), ('معلم 14'), ('معلم 15'), ('معلم 16'), ('معلم 17'), ('معلم 18');
+-- 4. إعدادات النظام العامة
+CREATE TABLE settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
 
-INSERT INTO classes (name) VALUES 
-('فصل 1'), ('فصل 2'), ('فصل 3'), ('فصل 4'), 
-('فصل 5'), ('فصل 6'), ('فصل 7'), ('فصل 8');
+-- بذور بيانات أولية للبدء
+INSERT INTO settings (key, value) VALUES 
+('current_semester', 'الثاني'),
+('current_year', '1447 هـ');
