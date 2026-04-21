@@ -34,6 +34,7 @@ const AdminView = () => {
   const [editingScheduleClassId, setEditingScheduleClassId] = useState(null);
   const [tempSchedule, setTempSchedule] = useState({});
   const [weeklyPlans, setWeeklyPlans] = useState([]);
+  const [isBulkExport, setIsBulkExport] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load data from Supabase
@@ -181,9 +182,9 @@ const AdminView = () => {
     return dateStr;
   };
 
-  const getFullClassData = () => {
-    if (!exportConfig.classId) return null;
-    const cls = classes.find(c => c.id === exportConfig.classId);
+  const getFullClassData = (classId = exportConfig.classId) => {
+    if (!classId) return null;
+    const cls = classes.find(c => c.id === classId);
     if (!cls) return null;
 
     // Aggregate plans from all teachers linked to this class
@@ -213,6 +214,7 @@ const AdminView = () => {
   };
 
   const printData = getFullClassData();
+  const allPrintData = isBulkExport ? classes.map(c => getFullClassData(c.id)).filter(d => d !== null) : [];
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
@@ -309,13 +311,28 @@ const AdminView = () => {
           </div>
         </div>
 
-        <button 
-          disabled={!exportConfig.classId}
-          onClick={() => window.print()}
-          className="w-full bg-white text-blue-700 py-4 rounded-2xl font-black text-lg hover:bg-blue-50 transition-all shadow-lg active:scale-[0.98] disabled:opacity-50"
-        >
-          توليد وطباعة الخطة الأسبوعية
-        </button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button 
+            disabled={!exportConfig.classId}
+            onClick={() => {
+              setIsBulkExport(false);
+              setTimeout(() => window.print(), 100);
+            }}
+            className="bg-white text-blue-700 py-4 rounded-2xl font-black text-lg hover:bg-blue-50 transition-all shadow-lg active:scale-[0.98] disabled:opacity-50"
+          >
+            توليد وطباعة الخطة الأسبوعية
+          </button>
+          <button 
+            disabled={classes.length === 0}
+            onClick={() => {
+              setIsBulkExport(true);
+              setTimeout(() => window.print(), 100);
+            }}
+            className="bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-lg active:scale-[0.98] disabled:opacity-50"
+          >
+            تصدير جميع الفصول ({classes.length})
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 print:hidden">
@@ -499,86 +516,93 @@ const AdminView = () => {
       )}
 
       {/* Real Print Template (Hidden unless printing) */}
-      {printData && (
+      {(printData || isBulkExport) && (
         <div className={`hidden print:block fixed inset-0 bg-white z-[9999] overflow-auto p-4`} dir="rtl">
           <style>{`
             @media print {
               @page { size: portrait; margin: 0.5cm; }
               body { background: white; }
+              .page-break { page-break-after: always; }
             }
             .plan-table td, .plan-table th { border: 1.5px solid #2b4c7e; }
             .day-header { background-color: #f8fafc; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
           `}</style>
           
-          {/* Header Image Simulation - Balanced (2% more compressed) */}
-          <div className="flex justify-between items-center mb-4 border-2 border-[#2b4c7e] p-3 rounded-3xl">
-            <div className="text-right leading-relaxed">
-              <p className="font-bold text-[11px]">ادارة التعليم بمحافظة حفر الباطن</p>
-              <p className="font-bold text-[11px]">مدرسة سمرة بن عمرو الابتدائية</p>
-            </div>
-            <div className="text-center">
-              <p className="font-bold text-[16px] text-[#2b4c7e] border-b-2 border-[#2b4c7e] mb-1 px-4">
-                الخطة التعليمية الأسبوعية - {exportConfig.semester} - {exportConfig.year}
-              </p>
-              <p className="text-[11px] font-bold">اسم الطالب: ................................................................</p>
-            </div>
-            <div className="text-left border-2 border-[#2b4c7e] p-1.5 rounded-2xl bg-slate-50 min-w-[125px] leading-tight">
-              <p className="font-bold text-[10px]">الأسبوع {exportConfig.weekNumber} [{printData.name}]</p>
-              <p className="text-[9px] font-bold text-slate-400 mt-1">تاريخ: {formatHijriDate(exportConfig.hijriDate)}</p>
-            </div>
-          </div>
+          {(isBulkExport ? allPrintData : [printData]).map((data, pIdx) => (
+            <div key={data.id} className={isBulkExport && pIdx < allPrintData.length - 1 ? 'page-break' : ''}>
+              {/* Header */}
+              <div className="flex justify-between items-center mb-4 border-2 border-[#2b4c7e] p-3 rounded-3xl">
+                <div className="text-right leading-relaxed">
+                  <p className="font-bold text-[11px]">ادارة التعليم بمحافظة حفر الباطن</p>
+                  <p className="font-bold text-[11px]">مدرسة سمرة بن عمرو الابتدائية</p>
+                </div>
+                <div className="text-center">
+                  <p className="font-bold text-[16px] text-[#2b4c7e] border-b-2 border-[#2b4c7e] mb-1 px-4">
+                    الخطة التعليمية الأسبوعية - {exportConfig.semester} - {exportConfig.year}
+                  </p>
+                  <p className="text-[11px] font-bold">اسم الطالب: ................................................................</p>
+                </div>
+                <div className="text-left border-2 border-[#2b4c7e] p-1.5 rounded-2xl bg-slate-50 min-w-[125px] leading-tight">
+                  <p className="font-bold text-[10px]">الأسبوع {exportConfig.weekNumber} [{data.name}]</p>
+                  <p className="text-[9px] font-bold text-slate-400 mt-1">تاريخ: {formatHijriDate(exportConfig.hijriDate)}</p>
+                </div>
+              </div>
 
-          <table className="w-full border-collapse plan-table text-[10.2px]">
-            <thead>
-              <tr className="bg-[#2b4c7e] text-white">
-                <th className="p-1 w-5 text-[9px]">اليوم</th>
-                <th className="p-1.5 w-6 text-[10.5px]">م</th>
-                <th className="p-1.5 w-20 text-[10.5px]">المادة</th>
-                <th className="p-1.5 w-56 text-[10.5px]">الدرس</th>
-                <th className="p-1.5 text-[10.5px]">الأهداف</th>
-                <th className="p-1.5 w-28 text-[10.5px]">الواجب</th>
-                <th className="p-1.5 w-16 text-[10.5px]">الملاحظات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {DAYS.map(day => (
-                <React.Fragment key={day.id}>
-                  {[1, 2, 3, 4, 5, 6].map((period, idx) => {
-                    const subject = printData.schedule[`${day.id}_${period}`];
-                    const plan = printData.plans[day.id]?.[period] || {};
-                    const isLastRow = idx === 5;
-                    return (
-                      <tr key={`${day.id}_${period}`} className={isLastRow ? 'border-b-4 border-[#2b4c7e]' : ''}>
-                        {idx === 0 && (
-                          <td rowSpan={6} className="day-header p-0 text-center font-black text-[13px] bg-slate-50 border-l-2 w-5">
-                            {day.name}
-                          </td>
-                        )}
-                        <td className="py-1 px-1.5 text-center font-bold border-r-0">{period}</td>
-                        <td className="py-1 px-1.5 text-center font-black text-blue-800">{subject || '-'}</td>
-                        <td className="py-1 px-1.5 text-right font-bold">{plan.title || ''}</td>
-                        <td className="py-1 px-1.5 text-right text-[9.2px] leading-relaxed">{plan.objective || ''}</td>
-                        <td className="py-1 px-1.5 text-center">{plan.homework || ''}</td>
-                        <td className="py-1 px-1.5 text-center"></td>
-                      </tr>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
+              {/* Table */}
+              <table className="w-full border-collapse plan-table text-[10.2px]">
+                <thead>
+                  <tr className="bg-[#2b4c7e] text-white">
+                    <th className="p-1 w-5 text-[9px]">اليوم</th>
+                    <th className="p-1.5 w-6 text-[10.5px]">م</th>
+                    <th className="p-1.5 w-20 text-[10.5px]">المادة</th>
+                    <th className="p-1.5 w-56 text-[10.5px]">الدرس</th>
+                    <th className="p-1.5 text-[10.5px]">الأهداف</th>
+                    <th className="p-1.5 w-28 text-[10.5px]">الواجب</th>
+                    <th className="p-1.5 w-16 text-[10.5px]">الملاحظات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DAYS.map(day => (
+                    <React.Fragment key={day.id}>
+                      {[1, 2, 3, 4, 5, 6].map((period, idx) => {
+                        const subject = data.schedule[`${day.id}_${period}`];
+                        const plan = data.plans[day.id]?.[period] || {};
+                        const isLastRow = idx === 5;
+                        return (
+                          <tr key={`${day.id}_${period}`} className={isLastRow ? 'border-b-4 border-[#2b4c7e]' : ''}>
+                            {idx === 0 && (
+                              <td rowSpan={6} className="day-header p-0 text-center font-black text-[13px] bg-slate-50 border-l-2 w-5">
+                                {day.name}
+                              </td>
+                            )}
+                            <td className="py-1 px-1.5 text-center font-bold border-r-0">{period}</td>
+                            <td className="py-1 px-1.5 text-center font-black text-blue-800">{subject || '-'}</td>
+                            <td className="py-1 px-1.5 text-right font-bold">{plan.title || ''}</td>
+                            <td className="py-1 px-1.5 text-right text-[9.2px] leading-relaxed">{plan.objective || ''}</td>
+                            <td className="py-1 px-1.5 text-center">{plan.homework || ''}</td>
+                            <td className="py-1 px-1.5 text-center"></td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
 
-          <div className="mt-2 border border-[#2b4c7e] p-2 rounded-xl">
-            <p className="font-bold text-[10px]">ملاحظات: ....................................................................................................................................................................................................................................................</p>
-          </div>
+              {/* Footer */}
+              <div className="mt-2 border border-[#2b4c7e] p-2 rounded-xl">
+                <p className="font-bold text-[10px]">ملاحظات: ....................................................................................................................................................................................................................................................</p>
+              </div>
 
-          <div className="mt-2 text-center text-[10px] font-bold text-slate-700 space-y-2">
-            <p>المدرسة جوال: 0545779288</p>
-            <div className="flex justify-between pt-2 px-4">
-              <p>رائد الفصل: {printData.leaderName || '.........................'}</p>
-              <p>مدير المدرسة: فرحان ضحوي العنزي</p>
+              <div className="mt-2 text-center text-[10px] font-bold text-slate-700 space-y-2">
+                <p>جوال المدرسة: 0545779288</p>
+                <div className="flex justify-between pt-2 px-4">
+                  <p>رائد الفصل: {data.leaderName || '.........................'}</p>
+                  <p>مدير المدرسة: فرحان ضحوي العنزي</p>
+                </div>
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       )}
 
