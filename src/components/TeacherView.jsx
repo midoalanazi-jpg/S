@@ -160,6 +160,10 @@ function TeacherView() {
             </div>
           </div>
         </div>
+        <div className="text-center mt-8 text-slate-400 opacity-80" style={{ fontFamily: 'sans-serif' }}>
+          <p className="text-sm font-light mb-1">تقبلوا تحياتي</p>
+          <p className="text-sm font-light tracking-widest">أبو أنس</p>
+        </div>
       </div>
     );
   }
