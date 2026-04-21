@@ -144,7 +144,8 @@ function TeacherView() {
   if (!selectedTeacherId) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-[2rem] shadow-xl w-full max-w-md border border-slate-100">
+        <div className="w-full max-w-md">
+          <div className="bg-white p-8 rounded-[2rem] shadow-xl w-full border border-slate-100">
           <h1 className="text-2xl font-bold text-center text-slate-900 mb-8">تسجيل دخول المعلم</h1>
           <div className="space-y-6">
             <div>
@@ -160,9 +161,10 @@ function TeacherView() {
             </div>
           </div>
         </div>
-        <div className="text-center mt-8 text-slate-400 opacity-80" style={{ fontFamily: 'sans-serif' }}>
-          <p className="text-sm font-light mb-1">تقبلوا تحياتي</p>
-          <p className="text-sm font-light tracking-widest">أبو أنس</p>
+          <div className="text-center mt-6 text-slate-500">
+            <p className="text-sm font-bold mb-1">تقبلوا تحياتي</p>
+            <p className="text-sm font-bold tracking-widest">أبو أنس</p>
+          </div>
         </div>
       </div>
     );
