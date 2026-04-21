@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import HijriDatePicker from '@mk01/react-hijri-date-picker';
 
+import { supabase } from '../supabaseClient';
+
 const DAYS = [
   { id: 'sun', name: 'الأحد' },
   { id: 'mon', name: 'الاثنين' },
@@ -30,36 +32,44 @@ const AdminView = () => {
   const [teacherAssignments, setTeacherAssignments] = useState({}); // { classId: [subject1, subject2] }
   const [editingScheduleClassId, setEditingScheduleClassId] = useState(null);
   const [tempSchedule, setTempSchedule] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load data from LocalStorage
+  // Load data from Supabase
   useEffect(() => {
-    const savedData = localStorage.getItem('planner_metadata');
-    if (savedData) {
-      const { classes: savedClasses, teachers: savedTeachers } = JSON.parse(savedData);
-      setClasses(savedClasses || []);
-      setTeachers(savedTeachers || []);
-    }
+    fetchInitialData();
   }, []);
 
-  // Save data to LocalStorage
-  const saveMetadata = (newClasses, newTeachers) => {
-    localStorage.setItem('planner_metadata', JSON.stringify({
-      classes: newClasses,
-      teachers: newTeachers
-    }));
+  const fetchInitialData = async () => {
+    setIsLoading(true);
+    try {
+      const { data: clsData } = await supabase.from('classes').select('*').order('created_at');
+      const { data: tchData } = await supabase.from('teachers').select('*').order('created_at');
+      setClasses(clsData || []);
+      setTeachers(tchData || []);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const addClass = () => {
+  const addClass = async () => {
     if (!newClassName.trim()) return;
-    const newClass = { id: Date.now().toString(), name: newClassName, schedule: {} };
-    const updatedClasses = [...classes, newClass];
-    setClasses(updatedClasses);
-    saveMetadata(updatedClasses, teachers);
-    setNewClassName('');
-    alert('تم إضافة الفصل بنجاح');
+    const { data, error } = await supabase
+      .from('classes')
+      .insert([{ name: newClassName, schedule: {} }])
+      .select();
+    
+    if (error) {
+      alert('خطأ في إضافة الفصل');
+    } else {
+      setClasses([...classes, data[0]]);
+      setNewClassName('');
+      alert('تم إضافة الفصل بنجاح');
+    }
   };
 
-  const addTeacher = () => {
+  const addTeacher = async () => {
     if (!newTeacherName.trim()) return;
     const assignedClassIds = Object.keys(teacherAssignments).filter(id => teacherAssignments[id].length > 0);
     
@@ -68,21 +78,23 @@ const AdminView = () => {
       return;
     }
 
-    const newTeacher = { 
-      id: Date.now().toString(), 
-      name: newTeacherName, 
-      assignments: teacherAssignments
-    };
+    const { data, error } = await supabase
+      .from('teachers')
+      .insert([{ 
+        name: newTeacherName, 
+        assignments: teacherAssignments 
+      }])
+      .select();
     
-    const updatedTeachers = [...teachers, newTeacher];
-    setTeachers(updatedTeachers);
-    saveMetadata(classes, updatedTeachers);
-    
-    // Reset
-    setNewTeacherName('');
-    setTeacherAssignments({});
-    setShowTeacherModal(false);
-    alert('تم إضافة المعلم بنجاح');
+    if (error) {
+      alert('خطأ في إضافة المعلم');
+    } else {
+      setTeachers([...teachers, data[0]]);
+      setNewTeacherName('');
+      setTeacherAssignments({});
+      setShowTeacherModal(false);
+      alert('تم إضافة المعلم بنجاح');
+    }
   };
 
   const toggleSubjectInAssignment = (classId, subject) => {
@@ -96,32 +108,40 @@ const AdminView = () => {
     });
   };
 
-  const deleteClass = (id) => {
-    const updatedClasses = classes.filter(c => c.id !== id);
-    setClasses(updatedClasses);
-    saveMetadata(updatedClasses, teachers);
+  const deleteClass = async (id) => {
+    const { error } = await supabase.from('classes').delete().eq('id', id);
+    if (!error) {
+      setClasses(classes.filter(c => c.id !== id));
+    }
   };
 
-  const deleteTeacher = (id) => {
-    const updatedTeachers = teachers.filter(t => t.id !== id);
-    setTeachers(updatedTeachers);
-    saveMetadata(classes, updatedTeachers);
+  const deleteTeacher = async (id) => {
+    const { error } = await supabase.from('teachers').delete().eq('id', id);
+    if (!error) {
+      setTeachers(teachers.filter(t => t.id !== id));
+    }
   };
-
 
   const openScheduleEditor = (cls) => {
     setEditingScheduleClassId(cls.id);
     setTempSchedule(cls.schedule || {});
   };
 
-  const saveSchedule = () => {
-    const updatedClasses = classes.map(c => 
-      c.id === editingScheduleClassId ? { ...c, schedule: tempSchedule } : c
-    );
-    setClasses(updatedClasses);
-    saveMetadata(updatedClasses, teachers);
-    setEditingScheduleClassId(null);
-    alert('تم حفظ الجدول بنجاح');
+  const saveSchedule = async () => {
+    const { error } = await supabase
+      .from('classes')
+      .update({ schedule: tempSchedule })
+      .eq('id', editingScheduleClassId);
+
+    if (error) {
+      alert('خطأ في حفظ الجدول');
+    } else {
+      setClasses(classes.map(c => 
+        c.id === editingScheduleClassId ? { ...c, schedule: tempSchedule } : c
+      ));
+      setEditingScheduleClassId(null);
+      alert('تم حفظ الجدول بنجاح');
+    }
   };
 
   const updateTempSchedule = (dayId, period, subject) => {

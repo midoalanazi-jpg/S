@@ -4,6 +4,7 @@ import {
   BookOpen, Target, Home, StickyNote,
   AlertCircle, X, Save, Plus, CheckCircle2, ChevronRight
 } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
 const DAYS = [
   { id: 'sun', name: 'الأحد' },
@@ -19,21 +20,30 @@ function TeacherView() {
   const [teachers, setTeachers] = useState([]);
   const [classes, setClasses] = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
-  const [selectedClassId, setSelectedClassId] = useState('');
   const [planData, setPlanData] = useState({});
   const [activeCell, setActiveCell] = useState(null); // { day, period, slotInfo }
   const [selectedCells, setSelectedCells] = useState([]); // Array of { day, period, slotInfo }
   const [saveStatus, setSaveStatus] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load metadata
+  // Load metadata from Supabase
   useEffect(() => {
-    const savedMetadata = localStorage.getItem('planner_metadata');
-    if (savedMetadata) {
-      const { classes: savedClasses, teachers: savedTeachers } = JSON.parse(savedMetadata);
-      setClasses(savedClasses || []);
-      setTeachers(savedTeachers || []);
-    }
+    fetchInitialData();
   }, []);
+
+  const fetchInitialData = async () => {
+    setIsLoading(true);
+    try {
+      const { data: clsData } = await supabase.from('classes').select('*');
+      const { data: tchData } = await supabase.from('teachers').select('*');
+      setClasses(clsData || []);
+      setTeachers(tchData || []);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Helper to get teacher's schedule slot
   const getTeacherSlotInfo = (dayId, period) => {
@@ -70,46 +80,65 @@ function TeacherView() {
     }
   };
 
-  // Load all relevant drafts for this teacher
+  // Load plans for this teacher from Supabase
   useEffect(() => {
     if (selectedTeacherId) {
-      const teacher = teachers.find(t => t.id === selectedTeacherId);
-      const assignments = teacher?.assignments || {};
-      const allDrafts = {};
-      
-      Object.keys(assignments).forEach(classId => {
-        const draftKey = `draft_${selectedTeacherId}_${classId}`;
-        const savedDraft = localStorage.getItem(draftKey);
-        if (savedDraft) {
-          allDrafts[classId] = JSON.parse(savedDraft);
-        }
-      });
-      setPlanData(allDrafts);
+      fetchTeacherPlans();
     }
-  }, [selectedTeacherId, teachers]);
+  }, [selectedTeacherId]);
 
-  const saveCellData = (cells, data) => {
+  const fetchTeacherPlans = async () => {
+    const { data, error } = await supabase
+      .from('weekly_plans')
+      .select('*')
+      .eq('teacher_id', selectedTeacherId);
+    
+    if (!error && data) {
+      const formattedPlans = {};
+      data.forEach(plan => {
+        formattedPlans[plan.class_id] = plan.week_data;
+      });
+      setPlanData(formattedPlans);
+    }
+  };
+
+  const saveCellData = async (cells, data) => {
     const updatedDrafts = { ...planData };
     
+    // Group cells by classId for efficient saving
+    const classGroups = {};
     cells.forEach(cell => {
-      const { day, period, slotInfo } = cell;
-      const { classId } = slotInfo;
-      
-      if (!updatedDrafts[classId]) updatedDrafts[classId] = {};
-      if (!updatedDrafts[classId][day]) updatedDrafts[classId][day] = {};
-      
-      updatedDrafts[classId][day][period] = data;
-      
-      // Save to localStorage immediately for each class
-      const draftKey = `draft_${selectedTeacherId}_${classId}`;
-      localStorage.setItem(draftKey, JSON.stringify(updatedDrafts[classId]));
+      const { classId } = cell.slotInfo;
+      if (!classGroups[classId]) classGroups[classId] = [];
+      classGroups[classId].push(cell);
     });
 
-    setPlanData(updatedDrafts);
-    setSaveStatus('تم الحفظ بنجاح');
-    setTimeout(() => setSaveStatus(''), 2000);
-    setActiveCell(null);
-    setSelectedCells([]);
+    try {
+      for (const classId of Object.keys(classGroups)) {
+        if (!updatedDrafts[classId]) updatedDrafts[classId] = {};
+        
+        classGroups[classId].forEach(cell => {
+          const { day, period } = cell;
+          if (!updatedDrafts[classId][day]) updatedDrafts[classId][day] = {};
+          updatedDrafts[classId][day][period] = data;
+        });
+
+        // Upsert to Supabase
+        await supabase.from('weekly_plans').upsert({
+          teacher_id: selectedTeacherId,
+          class_id: classId,
+          week_data: updatedDrafts[classId]
+        }, { onConflict: 'teacher_id, class_id' });
+      }
+
+      setPlanData(updatedDrafts);
+      setSaveStatus('تم الحفظ في السحابة');
+      setTimeout(() => setSaveStatus(''), 2000);
+      setActiveCell(null);
+      setSelectedCells([]);
+    } catch (err) {
+      alert('خطأ في الاتصال بقاعدة البيانات');
+    }
   };
 
   if (!selectedTeacherId) {
