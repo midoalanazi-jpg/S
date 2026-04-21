@@ -32,6 +32,7 @@ const AdminView = () => {
   const [teacherAssignments, setTeacherAssignments] = useState({}); // { classId: [subject1, subject2] }
   const [editingScheduleClassId, setEditingScheduleClassId] = useState(null);
   const [tempSchedule, setTempSchedule] = useState({});
+  const [weeklyPlans, setWeeklyPlans] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load data from Supabase
@@ -44,8 +45,11 @@ const AdminView = () => {
     try {
       const { data: clsData } = await supabase.from('classes').select('*').order('created_at');
       const { data: tchData } = await supabase.from('teachers').select('*').order('created_at');
+      const { data: plansData } = await supabase.from('weekly_plans').select('*');
+      
       setClasses(clsData || []);
       setTeachers(tchData || []);
+      setWeeklyPlans(plansData || []);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -181,28 +185,18 @@ const AdminView = () => {
 
     // Aggregate plans from all teachers linked to this class
     const aggregatedPlans = {};
-    teachers.forEach(t => {
-      const isAssigned = (t.classIds && t.classIds.includes(cls.id)) || 
-                         (t.assignments && t.assignments[cls.id]);
-                         
-      if (isAssigned) {
-        const draftKey = `draft_${t.id}_${cls.id}`;
-        const savedDraft = localStorage.getItem(draftKey);
-        if (savedDraft) {
-          const draftData = JSON.parse(savedDraft);
-          // Merge draftData into aggregatedPlans
-          Object.keys(draftData).forEach(day => {
-            if (!aggregatedPlans[day]) aggregatedPlans[day] = {};
-            Object.keys(draftData[day]).forEach(period => {
-              // If multiple teachers have data for the same cell (rare but possible),
-              // we take the first non-empty one.
-              if (!aggregatedPlans[day][period]) {
-                aggregatedPlans[day][period] = draftData[day][period];
-              }
-            });
-          });
-        }
-      }
+    const relevantPlans = weeklyPlans.filter(p => p.class_id === cls.id);
+    
+    relevantPlans.forEach(plan => {
+      const draftData = plan.week_data || {};
+      Object.keys(draftData).forEach(day => {
+        if (!aggregatedPlans[day]) aggregatedPlans[day] = {};
+        Object.keys(draftData[day]).forEach(period => {
+          if (!aggregatedPlans[day][period]) {
+            aggregatedPlans[day][period] = draftData[day][period];
+          }
+        });
+      });
     });
 
     return { ...cls, plans: aggregatedPlans };
