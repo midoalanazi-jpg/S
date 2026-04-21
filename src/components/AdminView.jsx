@@ -517,19 +517,18 @@ const AdminView = () => {
 
       {/* Real Print Template (Hidden unless printing) */}
       {(printData || isBulkExport) && (
-        <div className={`hidden print:block fixed inset-0 bg-white z-[9999] overflow-auto p-4`} dir="rtl">
+        <div className="hidden print:block bg-white" dir="rtl">
           <style>{`
             @media print {
               @page { size: portrait; margin: 0.5cm; }
               body { background: white; }
-              .page-break { page-break-after: always; }
             }
             .plan-table td, .plan-table th { border: 1.5px solid #2b4c7e; }
             .day-header { background-color: #f8fafc; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
           `}</style>
           
           {(isBulkExport ? allPrintData : [printData]).map((data, pIdx) => (
-            <div key={data.id} className={isBulkExport && pIdx < allPrintData.length - 1 ? 'page-break' : ''}>
+            <div key={data.id} className={isBulkExport && pIdx < allPrintData.length - 1 ? 'break-after-page mb-8' : ''}>
               {/* Header */}
               <div className="flex justify-between items-center mb-4 border-2 border-[#2b4c7e] p-3 rounded-3xl">
                 <div className="text-right leading-relaxed">
