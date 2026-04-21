@@ -161,9 +161,9 @@ function TeacherView() {
             </div>
           </div>
         </div>
-          <div className="text-center mt-6 text-slate-500">
-            <p className="text-sm font-bold mb-1">تقبلوا تحياتي</p>
-            <p className="text-sm font-bold tracking-widest">أبو أنس</p>
+          <div className="text-center mt-6 text-slate-500 opacity-80">
+            <p className="text-sm font-light mb-1">تقبلو تحياتي</p>
+            <p className="text-sm font-light tracking-widest">ابو انس</p>
           </div>
         </div>
       </div>
@@ -374,7 +374,7 @@ function TeacherView() {
       <div className="md:hidden mt-6 p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-center gap-3">
         <AlertCircle className="text-amber-500 shrink-0" size={20} />
         <p className="text-[10px] text-amber-700 font-bold leading-relaxed">
-          يفضل تدوير الهاتف أو استخدامه بوضع العرض لتصفح الجدول بشكل أفضل. اضغط على أي خلية للتحضير.
+          اقلب الجوال جنب علشان تشوف زين 😊
         </p>
       </div>
     </div>
