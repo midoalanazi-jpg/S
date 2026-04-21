@@ -563,14 +563,14 @@ const AdminView = () => {
                 <tbody>
                   {DAYS.map(day => (
                     <React.Fragment key={day.id}>
-                      {[1, 2, 3, 4, 5, 6].map((period, idx) => {
+                      {(day.id === 'sun' ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5, 6]).map((period, idx, arr) => {
                         const subject = data.schedule[`${day.id}_${period}`];
                         const plan = data.plans[day.id]?.[period] || {};
-                        const isLastRow = idx === 5;
+                        const isLastRow = idx === arr.length - 1;
                         return (
                           <tr key={`${day.id}_${period}`} className={isLastRow ? 'border-b-4 border-[#2b4c7e]' : ''}>
                             {idx === 0 && (
-                              <td rowSpan={6} className="day-header p-0 text-center font-black text-[13px] bg-slate-50 border-l-2 w-5">
+                              <td rowSpan={arr.length} className="day-header p-0 text-center font-black text-[13px] bg-slate-50 border-l-2 w-5">
                                 {day.name}
                               </td>
                             )}
