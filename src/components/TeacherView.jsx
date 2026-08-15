@@ -141,6 +141,45 @@ function TeacherView() {
     }
   };
 
+  const [formData, setFormData] = useState({ title: '', objective: '', homework: '' });
+  const [showLimitWarning, setShowLimitWarning] = useState(false);
+  const [warnedFields, setWarnedFields] = useState({ title: false, objective: false, homework: false });
+
+  const LIMITS = {
+    title: 42,
+    objective: 52,
+    homework: 16
+  };
+
+  // Update formData when activeCell changes
+  useEffect(() => {
+    if (activeCell) {
+      if (selectedCells.length === 1 && activeCell.slotInfo) {
+        const existing = planData[activeCell.slotInfo.classId]?.[activeCell.day]?.[activeCell.period] || {};
+        setFormData({
+          title: existing.title || '',
+          objective: existing.objective || '',
+          homework: existing.homework || ''
+        });
+      } else {
+        setFormData({ title: '', objective: '', homework: '' });
+      }
+      setWarnedFields({ title: false, objective: false, homework: false });
+      setShowLimitWarning(false);
+    }
+  }, [activeCell, selectedCells, planData]);
+
+  const handleFieldChange = (field, value) => {
+    const limit = LIMITS[field];
+    if (value.length > limit && !warnedFields[field]) {
+      setShowLimitWarning(true);
+      setWarnedFields(prev => ({ ...prev, [field]: true }));
+    } else if (value.length <= limit && warnedFields[field]) {
+      setWarnedFields(prev => ({ ...prev, [field]: false }));
+    }
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
   if (!selectedTeacherId) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -171,45 +210,6 @@ function TeacherView() {
   }
 
   const currentTeacher = teachers.find(t => t.id === selectedTeacherId);
-
-  const LIMITS = {
-    title: 42,
-    objective: 52,
-    homework: 16
-  };
-
-  const [formData, setFormData] = useState({ title: '', objective: '', homework: '' });
-  const [showLimitWarning, setShowLimitWarning] = useState(false);
-  const [warnedFields, setWarnedFields] = useState({ title: false, objective: false, homework: false });
-
-  // Update formData when activeCell changes
-  useEffect(() => {
-    if (activeCell) {
-      if (selectedCells.length === 1 && activeCell.slotInfo) {
-        const existing = planData[activeCell.slotInfo.classId]?.[activeCell.day]?.[activeCell.period] || {};
-        setFormData({
-          title: existing.title || '',
-          objective: existing.objective || '',
-          homework: existing.homework || ''
-        });
-      } else {
-        setFormData({ title: '', objective: '', homework: '' });
-      }
-      setWarnedFields({ title: false, objective: false, homework: false });
-      setShowLimitWarning(false);
-    }
-  }, [activeCell]);
-
-  const handleFieldChange = (field, value) => {
-    const limit = LIMITS[field];
-    if (value.length > limit && !warnedFields[field]) {
-      setShowLimitWarning(true);
-      setWarnedFields(prev => ({ ...prev, [field]: true }));
-    } else if (value.length <= limit && warnedFields[field]) {
-      setWarnedFields(prev => ({ ...prev, [field]: false }));
-    }
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
 
   // Modal / Popup
   return (
