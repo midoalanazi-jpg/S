@@ -352,44 +352,6 @@ const AdminView = () => {
         </div>
       </div>
 
-      {/* Quick Action Buttons for Management */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:hidden">
-        <button
-          onClick={() => setManagementModalTab('classes')}
-          className="flex items-center justify-between p-5 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-blue-200 transition-all text-right group"
-        >
-          <div className="flex items-center gap-4">
-            <div className="bg-blue-100 text-blue-600 p-3.5 rounded-2xl group-hover:scale-110 transition-transform">
-              <Users size={24} />
-            </div>
-            <div>
-              <h3 className="font-bold text-gray-900 text-lg">إدارة الفصول</h3>
-              <p className="text-xs text-gray-500 font-medium">إضافة، حذف، وإعداد جداول الحصص</p>
-            </div>
-          </div>
-          <span className="bg-blue-50 text-blue-600 font-bold text-xs px-3 py-1.5 rounded-xl border border-blue-100">
-            {classes.length} فصل
-          </span>
-        </button>
-
-        <button
-          onClick={() => setManagementModalTab('teachers')}
-          className="flex items-center justify-between p-5 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all text-right group"
-        >
-          <div className="flex items-center gap-4">
-            <div className="bg-indigo-100 text-indigo-600 p-3.5 rounded-2xl group-hover:scale-110 transition-transform">
-              <User size={24} />
-            </div>
-            <div>
-              <h3 className="font-bold text-gray-900 text-lg">إدارة المعلمين</h3>
-              <p className="text-xs text-gray-500 font-medium">إضافة معلمين، وإسناد المواد والفصول</p>
-            </div>
-          </div>
-          <span className="bg-indigo-50 text-indigo-600 font-bold text-xs px-3 py-1.5 rounded-xl border border-indigo-100">
-            {teachers.length} معلم
-          </span>
-        </button>
-      </div>
 
       {/* Management Modal (Classes & Teachers) */}
       {managementModalTab && (
