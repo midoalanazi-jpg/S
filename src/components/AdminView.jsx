@@ -178,24 +178,70 @@ const AdminView = () => {
 
   const currentEditingClass = classes.find(c => c.id === editingScheduleClassId);
 
-  // Export Logic
-  const [exportConfig, setExportConfig] = useState({
-    classId: '',
-    weekNumber: '11',
-    semester: 'الثاني',
-    year: '1447 هـ',
-    hijriDate: '11 / 8 / 1447 هـ'
+  const getTodayHijriFormatted = () => {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US-u-ca-islamic-umalqura', {
+        day: 'numeric',
+        month: 'numeric',
+        year: 'numeric'
+      }).formatToParts(new Date());
+
+      const day = parts.find(p => p.type === 'day')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const year = parts.find(p => p.type === 'year')?.value;
+      
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${year}-${pad(month)}-${pad(day)}`;
+    } catch (e) {
+      return '1447-08-11';
+    }
+  };
+
+  // Export Logic with localStorage persistence
+  const [exportConfig, setExportConfig] = useState(() => {
+    const todayHijri = getTodayHijriFormatted();
+    try {
+      const saved = localStorage.getItem('admin_export_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          classId: parsed.classId || '',
+          weekNumber: parsed.weekNumber !== undefined ? parsed.weekNumber : '11',
+          semester: parsed.semester || 'الثاني',
+          year: parsed.year || '1447 هـ',
+          hijriDate: parsed.hijriDate || todayHijri
+        };
+      }
+    } catch (e) {
+      console.error('Error loading export config:', e);
+    }
+    return {
+      classId: '',
+      weekNumber: '11',
+      semester: 'الثاني',
+      year: '1447 هـ',
+      hijriDate: todayHijri
+    };
   });
+
+  // Auto-save exportConfig changes to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('admin_export_config', JSON.stringify(exportConfig));
+    } catch (e) {
+      console.error('Error saving export config:', e);
+    }
+  }, [exportConfig]);
 
   const formatHijriDate = (dateStr) => {
     if (!dateStr) return '';
-    // If it's already formatted with slashes and spaces, keep it
-    if (dateStr.includes(' / ')) return dateStr;
     // If it's YYYY-MM-DD from the picker
     const parts = dateStr.split('-');
     if (parts.length === 3) {
-      return `${parts[2]} / ${parts[1]} / ${parts[0]}`;
+      return `${parseInt(parts[2], 10)} / ${parseInt(parts[1], 10)} / ${parts[0]} هـ`;
     }
+    // If it's already formatted with slashes
+    if (dateStr.includes('/')) return dateStr.includes('هـ') ? dateStr : `${dateStr} هـ`;
     return dateStr;
   };
 
@@ -287,8 +333,10 @@ const AdminView = () => {
             <div className="hijri-picker-container">
               <HijriDatePicker 
                 value={exportConfig.hijriDate}
-                onChange={(v) => setExportConfig({...exportConfig, hijriDate: v})}
-                className="w-full p-3 bg-white/10 border-none rounded-xl font-bold focus:ring-2 focus:ring-white outline-none text-center"
+                onChange={(v) => setExportConfig(prev => ({...prev, hijriDate: v}))}
+                locale="ar"
+                showTodayButton={true}
+                className="w-full p-3 bg-white/10 border-none rounded-xl font-bold focus:ring-2 focus:ring-white outline-none text-center cursor-pointer"
                 placeholder="اختر التاريخ"
               />
             </div>
@@ -302,28 +350,44 @@ const AdminView = () => {
                 color: white !important;
                 font-weight: bold !important;
                 text-align: center !important;
+                cursor: pointer !important;
               }
               .hijri-picker-container input::placeholder { color: rgba(255, 255, 255, 0.5); }
-              /* Simple overrides for the calendar popup to look better */
-              .rhdp-container { color: #333 !important; }
+              /* Calendar popup styling */
+              .rhdp-container { 
+                color: #1e293b !important; 
+                font-family: inherit !important; 
+                direction: rtl !important; 
+                z-index: 100 !important;
+                border-radius: 1.25rem !important;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2) !important;
+              }
             `}</style>
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-bold opacity-80 mr-1">الفصل الدراسي</label>
             <input 
               type="text" 
+              list="semesters-list"
               value={exportConfig.semester}
-              onChange={(e) => setExportConfig({...exportConfig, semester: e.target.value})}
+              onChange={(e) => setExportConfig(prev => ({...prev, semester: e.target.value}))}
               className="w-full p-3 bg-white/10 border-none rounded-xl font-bold focus:ring-2 focus:ring-white outline-none text-center"
+              placeholder="مثال: الثاني"
             />
+            <datalist id="semesters-list">
+              <option value="الأول" />
+              <option value="الثاني" />
+              <option value="الثالث" />
+            </datalist>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-bold opacity-80 mr-1">العام</label>
+            <label className="text-[10px] font-bold opacity-80 mr-1">العام الدراسي</label>
             <input 
               type="text" 
               value={exportConfig.year}
-              onChange={(e) => setExportConfig({...exportConfig, year: e.target.value})}
+              onChange={(e) => setExportConfig(prev => ({...prev, year: e.target.value}))}
               className="w-full p-3 bg-white/10 border-none rounded-xl font-bold focus:ring-2 focus:ring-white outline-none text-center"
+              placeholder="1447 هـ"
             />
           </div>
         </div>
