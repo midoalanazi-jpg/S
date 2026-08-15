@@ -172,6 +172,46 @@ function TeacherView() {
 
   const currentTeacher = teachers.find(t => t.id === selectedTeacherId);
 
+  const LIMITS = {
+    title: 42,
+    objective: 52,
+    homework: 16
+  };
+
+  const [formData, setFormData] = useState({ title: '', objective: '', homework: '' });
+  const [showLimitWarning, setShowLimitWarning] = useState(false);
+  const [warnedFields, setWarnedFields] = useState({ title: false, objective: false, homework: false });
+
+  // Update formData when activeCell changes
+  useEffect(() => {
+    if (activeCell) {
+      if (selectedCells.length === 1 && activeCell.slotInfo) {
+        const existing = planData[activeCell.slotInfo.classId]?.[activeCell.day]?.[activeCell.period] || {};
+        setFormData({
+          title: existing.title || '',
+          objective: existing.objective || '',
+          homework: existing.homework || ''
+        });
+      } else {
+        setFormData({ title: '', objective: '', homework: '' });
+      }
+      setWarnedFields({ title: false, objective: false, homework: false });
+      setShowLimitWarning(false);
+    }
+  }, [activeCell]);
+
+  const handleFieldChange = (field, value) => {
+    const limit = LIMITS[field];
+    if (value.length > limit && !warnedFields[field]) {
+      setShowLimitWarning(true);
+      setWarnedFields(prev => ({ ...prev, [field]: true }));
+    } else if (value.length <= limit && warnedFields[field]) {
+      setWarnedFields(prev => ({ ...prev, [field]: false }));
+    }
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Modal / Popup
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       {/* Header */}
@@ -315,57 +355,118 @@ function TeacherView() {
             </div>
             
             <div className="p-8 space-y-6">
+              {/* موضوع الدرس */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 flex items-center gap-2">
-                  <BookOpen size={14} /> عنوان الدرس
-                </label>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <BookOpen size={14} /> موضوع الدرس
+                  </label>
+                  <span className={`text-[11px] font-bold ${
+                    LIMITS.title - formData.title.length < 0 ? 'text-red-500 font-black' : 'text-slate-400'
+                  }`}>
+                    {LIMITS.title - formData.title.length < 0 
+                      ? `تجاوزت بـ ${Math.abs(LIMITS.title - formData.title.length)} حرف` 
+                      : `المتبقي: ${LIMITS.title - formData.title.length} حرف`}
+                  </span>
+                </div>
                 <input 
                   type="text"
                   autoFocus
-                  defaultValue={selectedCells.length === 1 ? (planData[activeCell.slotInfo.classId]?.[activeCell.day]?.[activeCell.period]?.title || '') : ''}
-                  id="modal-title"
-                  className="w-full p-4 bg-slate-50 rounded-2xl border-transparent focus:bg-white focus:border-indigo-300 focus:ring-0 outline-none transition-all font-bold text-slate-700"
+                  value={formData.title}
+                  onChange={(e) => handleFieldChange('title', e.target.value)}
+                  className={`w-full p-4 bg-slate-50 rounded-2xl border-2 transition-all font-bold text-slate-700 outline-none ${
+                    LIMITS.title - formData.title.length < 0 
+                      ? 'border-red-300 focus:border-red-500 focus:bg-white' 
+                      : 'border-transparent focus:bg-white focus:border-indigo-300'
+                  }`}
                   placeholder="مثال: الكسور الاعتيادية"
                 />
               </div>
 
+              {/* الأهداف */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 flex items-center gap-2">
-                  <Target size={14} /> الأهداف
-                </label>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <Target size={14} /> الأهداف
+                  </label>
+                  <span className={`text-[11px] font-bold ${
+                    LIMITS.objective - formData.objective.length < 0 ? 'text-red-500 font-black' : 'text-slate-400'
+                  }`}>
+                    {LIMITS.objective - formData.objective.length < 0 
+                      ? `تجاوزت بـ ${Math.abs(LIMITS.objective - formData.objective.length)} حرف` 
+                      : `المتبقي: ${LIMITS.objective - formData.objective.length} حرف`}
+                  </span>
+                </div>
                 <textarea 
-                  id="modal-objective"
-                  defaultValue={selectedCells.length === 1 ? (planData[activeCell.slotInfo.classId]?.[activeCell.day]?.[activeCell.period]?.objective || '') : ''}
-                  className="w-full p-4 bg-slate-50 rounded-2xl border-transparent focus:bg-white focus:border-indigo-300 focus:ring-0 outline-none transition-all text-sm min-h-[100px]"
+                  value={formData.objective}
+                  onChange={(e) => handleFieldChange('objective', e.target.value)}
+                  className={`w-full p-4 bg-slate-50 rounded-2xl border-2 transition-all text-sm min-h-[100px] outline-none ${
+                    LIMITS.objective - formData.objective.length < 0 
+                      ? 'border-red-300 focus:border-red-500 focus:bg-white' 
+                      : 'border-transparent focus:bg-white focus:border-indigo-300'
+                  }`}
                   placeholder="ماذا يتوقع من الطالب تحقيقه؟"
                 />
               </div>
 
+              {/* الواجب */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 flex items-center gap-2">
-                  <Home size={14} /> الواجب
-                </label>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <Home size={14} /> الواجب
+                  </label>
+                  <span className={`text-[11px] font-bold ${
+                    LIMITS.homework - formData.homework.length < 0 ? 'text-red-500 font-black' : 'text-slate-400'
+                  }`}>
+                    {LIMITS.homework - formData.homework.length < 0 
+                      ? `تجاوزت بـ ${Math.abs(LIMITS.homework - formData.homework.length)} حرف` 
+                      : `المتبقي: ${LIMITS.homework - formData.homework.length} حرف`}
+                  </span>
+                </div>
                 <input 
                   type="text"
-                  id="modal-homework"
-                  defaultValue={selectedCells.length === 1 ? (planData[activeCell.slotInfo.classId]?.[activeCell.day]?.[activeCell.period]?.homework || '') : ''}
-                  className="w-full p-4 bg-slate-50 rounded-2xl border-transparent focus:bg-white focus:border-indigo-300 focus:ring-0 outline-none transition-all text-sm"
+                  value={formData.homework}
+                  onChange={(e) => handleFieldChange('homework', e.target.value)}
+                  className={`w-full p-4 bg-slate-50 rounded-2xl border-2 transition-all text-sm outline-none ${
+                    LIMITS.homework - formData.homework.length < 0 
+                      ? 'border-red-300 focus:border-red-500 focus:bg-white' 
+                      : 'border-transparent focus:bg-white focus:border-indigo-300'
+                  }`}
                   placeholder="رقم الصفحة أو السؤال"
                 />
               </div>
 
               <button 
                 onClick={() => {
-                  const title = document.getElementById('modal-title').value;
-                  const objective = document.getElementById('modal-objective').value;
-                  const homework = document.getElementById('modal-homework').value;
-                  saveCellData(selectedCells, { title, objective, homework });
+                  saveCellData(selectedCells, formData);
                 }}
                 className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 mt-4"
               >
                 <Save size={20} /> حفظ للكل ({selectedCells.length} حصص)
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Limit Warning Popup */}
+      {showLimitWarning && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white max-w-md w-full p-6 rounded-3xl shadow-2xl text-center space-y-4 border border-amber-200 animate-in zoom-in-95">
+            <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-2xl shadow-inner">
+              ⚠️
+            </div>
+            <h3 className="text-lg font-bold text-gray-900">تنبيه لطباعة الخطة</h3>
+            <p className="text-sm font-bold text-amber-800 bg-amber-50 p-4 rounded-2xl border border-amber-200 leading-relaxed">
+              تراك تبي تحوس الخطه عند الطباعه اذا كثرت حروف
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowLimitWarning(false)}
+              className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl shadow-lg shadow-amber-200 transition-all active:scale-95"
+            >
+              موافق
+            </button>
           </div>
         </div>
       )}
