@@ -36,6 +36,7 @@ const AdminView = () => {
   const [weeklyPlans, setWeeklyPlans] = useState([]);
   const [isBulkExport, setIsBulkExport] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [managementModalTab, setManagementModalTab] = useState(null); // 'classes' | 'teachers' | null
 
   // Load data from Supabase
   useEffect(() => {
@@ -351,114 +352,241 @@ const AdminView = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 print:hidden">
-        {/* Manage Classes Section */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-6">
-          <div className="flex items-center gap-2 border-b pb-4">
-            <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
-              <Users size={20} />
+      {/* Quick Action Buttons for Management */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:hidden">
+        <button
+          onClick={() => setManagementModalTab('classes')}
+          className="flex items-center justify-between p-5 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-blue-200 transition-all text-right group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="bg-blue-100 text-blue-600 p-3.5 rounded-2xl group-hover:scale-110 transition-transform">
+              <Users size={24} />
             </div>
-            <h2 className="text-xl font-bold">إدارة الفصول</h2>
-          </div>
-
-          <div className="flex gap-2">
-            <input 
-              type="text" 
-              placeholder="اسم الفصل الجديد..."
-              value={newClassName}
-              onChange={(e) => setNewClassName(e.target.value)}
-              className="flex-1 p-3 bg-gray-50 rounded-xl border-transparent focus:bg-white focus:border-blue-300 focus:ring-0 transition-all outline-none font-bold"
-            />
-            <button 
-              onClick={addClass}
-              className="bg-blue-600 text-white px-4 rounded-xl hover:bg-blue-700 transition-all"
-            >
-              <Plus size={20} />
-            </button>
-          </div>
-
-          <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-            {classes.map(c => (
-              <div key={c.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl group hover:bg-white hover:shadow-md border border-transparent hover:border-gray-100 transition-all">
-                <div className="flex flex-col">
-                  <span className="font-bold text-gray-800">{c.name}</span>
-                  <span className="text-[10px] text-gray-400">ID: {c.id.slice(-5)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => openScheduleEditor(c)}
-                    className="flex items-center gap-1 text-xs font-bold bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-600 hover:text-white transition-all"
-                  >
-                    <Calendar size={14} /> إضافة جدول
-                  </button>
-                  <button onClick={() => deleteClass(c.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all p-1">
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-            ))}
-            {classes.length === 0 && <p className="text-center text-gray-400 text-sm py-4 italic">لا يوجد فصول مضافة بعد</p>}
-          </div>
-        </div>
-
-        {/* Manage Teachers Section */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-6">
-          <div className="flex items-center gap-2 border-b pb-4">
-            <div className="bg-indigo-100 p-2 rounded-lg text-indigo-600">
-              <User size={20} />
+            <div>
+              <h3 className="font-bold text-gray-900 text-lg">إدارة الفصول</h3>
+              <p className="text-xs text-gray-500 font-medium">إضافة، حذف، وإعداد جداول الحصص</p>
             </div>
-            <h2 className="text-xl font-bold">إدارة المعلمين</h2>
           </div>
+          <span className="bg-blue-50 text-blue-600 font-bold text-xs px-3 py-1.5 rounded-xl border border-blue-100">
+            {classes.length} فصل
+          </span>
+        </button>
 
-          <button 
-            disabled={classes.length === 0}
-            onClick={() => {
-              setNewTeacherName('');
-              setTeacherAssignments({});
-              setShowTeacherModal(true);
-            }}
-            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 disabled:opacity-50"
-          >
-            <Plus size={20} /> إضافة معلم جديد
-          </button>
-
-          <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-            {teachers.map(t => (
-              <div key={t.id} className="p-3 bg-gray-50 rounded-xl group hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 transition-all">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="font-bold text-gray-700">{t.name}</span>
-                  <button onClick={() => deleteTeacher(t.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all">
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-                <div className="flex flex-col gap-1">
-                  {Object.keys(t.assignments || {}).map(cid => {
-                    const cls = classes.find(c => c.id === cid);
-                    const assignedSubjects = t.assignments[cid] || [];
-                    if (!cls || assignedSubjects.length === 0) return null;
-                    return (
-                      <div key={cid} className="flex flex-wrap items-center gap-1">
-                        <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-bold border border-indigo-100">{cls.name}:</span>
-                        {assignedSubjects.map(s => (
-                          <span key={s} className="text-[9px] text-gray-500 font-medium">#{s}</span>
-                        ))}
-                      </div>
-                    );
-                  })}
-                  {/* Backward compatibility for old structure */}
-                  {t.classIds && t.classIds.map(cid => {
-                    const cls = classes.find(c => c.id === cid);
-                    return cls ? (
-                      <span key={cid} className="text-[10px] bg-gray-200 px-2 py-0.5 rounded text-gray-600 font-bold">{cls.name}</span>
-                    ) : null;
-                  })}
-                </div>
-              </div>
-            ))}
-            {teachers.length === 0 && <p className="text-center text-gray-400 text-sm py-4 italic">لا يوجد معلمين مضافين بعد</p>}
+        <button
+          onClick={() => setManagementModalTab('teachers')}
+          className="flex items-center justify-between p-5 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all text-right group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="bg-indigo-100 text-indigo-600 p-3.5 rounded-2xl group-hover:scale-110 transition-transform">
+              <User size={24} />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 text-lg">إدارة المعلمين</h3>
+              <p className="text-xs text-gray-500 font-medium">إضافة معلمين، وإسناد المواد والفصول</p>
+            </div>
           </div>
-        </div>
+          <span className="bg-indigo-50 text-indigo-600 font-bold text-xs px-3 py-1.5 rounded-xl border border-indigo-100">
+            {teachers.length} معلم
+          </span>
+        </button>
       </div>
+
+      {/* Management Modal (Classes & Teachers) */}
+      {managementModalTab && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden">
+          <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="flex bg-gray-200/70 p-1 rounded-2xl">
+                  <button
+                    onClick={() => setManagementModalTab('classes')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                      managementModalTab === 'classes'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Users size={16} /> إدارة الفصول ({classes.length})
+                  </button>
+                  <button
+                    onClick={() => setManagementModalTab('teachers')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                      managementModalTab === 'teachers'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <User size={16} /> إدارة المعلمين ({teachers.length})
+                  </button>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setManagementModalTab(null)}
+                className="p-2 hover:bg-slate-200 rounded-full transition-all text-slate-400 hover:text-slate-700"
+                title="إغلاق"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-auto p-6 md:p-8">
+              {managementModalTab === 'classes' ? (
+                /* Manage Classes Content */
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">قائمة الفصول الدراسية</h3>
+                      <p className="text-xs text-gray-500">يمكنك إضافة فصول جديدة أو ضبط الجدول الأسبوعي لكل فصل</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="اسم الفصل الجديد (مثال: أول ابتدائي / أ)..."
+                      value={newClassName}
+                      onChange={(e) => setNewClassName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addClass()}
+                      className="flex-1 p-3.5 bg-gray-50 rounded-2xl border border-gray-200 focus:bg-white focus:border-blue-400 focus:ring-0 transition-all outline-none font-bold"
+                    />
+                    <button 
+                      onClick={addClass}
+                      className="bg-blue-600 text-white px-6 rounded-2xl hover:bg-blue-700 font-bold flex items-center gap-2 transition-all shadow-md shadow-blue-100 active:scale-95"
+                    >
+                      <Plus size={20} /> إضافة
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+                    {classes.map(c => (
+                      <div key={c.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl group hover:bg-white hover:shadow-md border border-gray-100 hover:border-blue-100 transition-all">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-gray-800 text-base">{c.name}</span>
+                          <span className="text-[10px] text-gray-400">المعرف: {c.id.slice(-5)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => openScheduleEditor(c)}
+                            className="flex items-center gap-1 text-xs font-bold bg-blue-50 text-blue-600 px-3.5 py-2 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                          >
+                            <Calendar size={14} /> إعداد الجدول
+                          </button>
+                          <button 
+                            onClick={() => deleteClass(c.id)} 
+                            className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-xl transition-all"
+                            title="حذف الفصل"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {classes.length === 0 && (
+                      <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                        <Users size={36} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-gray-500 font-bold text-sm">لا يوجد فصول دراسية مضافة بعد</p>
+                        <p className="text-gray-400 text-xs mt-1">أدخل اسم الفصل في الحقل أعلاه واضغط إضافة</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* Manage Teachers Content */
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">قائمة المعلمين</h3>
+                      <p className="text-xs text-gray-500">إدارة حسابات المعلمين، إسناد المواد، وتحديد رواد الفصول</p>
+                    </div>
+                    <button 
+                      disabled={classes.length === 0}
+                      onClick={() => {
+                        setNewTeacherName('');
+                        setTeacherAssignments({});
+                        setShowTeacherModal(true);
+                      }}
+                      className="bg-indigo-600 text-white px-5 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 disabled:opacity-50"
+                    >
+                      <Plus size={18} /> إضافة معلم جديد
+                    </button>
+                  </div>
+
+                  {classes.length === 0 && (
+                    <p className="text-xs text-amber-600 bg-amber-50 p-3 rounded-xl border border-amber-200">
+                      ⚠️ يرجى إضافة فصول دراسية أولاً قبل التمكن من إضافة معلمين وإسناد المواد إليهم.
+                    </p>
+                  )}
+
+                  <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+                    {teachers.map(t => (
+                      <div key={t.id} className="p-4 bg-gray-50 rounded-2xl group hover:bg-white hover:shadow-md border border-gray-100 hover:border-indigo-100 transition-all">
+                        <div className="flex justify-between items-center mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-gray-800 text-base">{t.name}</span>
+                            {t.leader_of && t.leader_of.length > 0 && (
+                              <span className="text-[10px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-lg border border-amber-200">
+                                رائد فصل ({classes.find(c => c.id === t.leader_of[0])?.name || 'فصل'})
+                              </span>
+                            )}
+                          </div>
+                          <button 
+                            onClick={() => deleteTeacher(t.id)} 
+                            className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-xl transition-all"
+                            title="حذف المعلم"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                        <div className="flex flex-col gap-1.5 pt-1 border-t border-gray-100">
+                          {Object.keys(t.assignments || {}).map(cid => {
+                            const cls = classes.find(c => c.id === cid);
+                            const assignedSubjects = t.assignments[cid] || [];
+                            if (!cls || assignedSubjects.length === 0) return null;
+                            return (
+                              <div key={cid} className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[11px] bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-lg font-bold border border-indigo-100">{cls.name}:</span>
+                                {assignedSubjects.map(s => (
+                                  <span key={s} className="text-[10px] bg-white text-gray-600 px-2 py-0.5 rounded-md border border-gray-200 font-medium">#{s}</span>
+                                ))}
+                              </div>
+                            );
+                          })}
+                          {t.classIds && t.classIds.map(cid => {
+                            const cls = classes.find(c => c.id === cid);
+                            return cls ? (
+                              <span key={cid} className="text-[10px] bg-gray-200 px-2 py-0.5 rounded text-gray-600 font-bold">{cls.name}</span>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                    {teachers.length === 0 && (
+                      <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                        <User size={36} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-gray-500 font-bold text-sm">لا يوجد معلمين مضافين بعد</p>
+                        <p className="text-gray-400 text-xs mt-1">اضغط على زر "إضافة معلم جديد" لإضافة معلم</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setManagementModalTab(null)}
+                className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition-all text-sm"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Schedule Editor Overlay */}
       {editingScheduleClassId && (
@@ -732,13 +860,29 @@ const AdminView = () => {
 
       {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:hidden">
-        <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-6 rounded-3xl text-white shadow-xl">
-          <p className="opacity-80 text-sm">إجمالي المعلمين</p>
-          <h3 className="text-3xl font-bold">{teachers.length}</h3>
+        <div 
+          onClick={() => setManagementModalTab('teachers')}
+          className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-6 rounded-3xl text-white shadow-xl cursor-pointer hover:scale-[1.02] transition-transform"
+          title="اضغط لفتح إدارة المعلمين"
+        >
+          <div className="flex justify-between items-center">
+            <p className="opacity-80 text-sm font-medium">إجمالي المعلمين</p>
+            <User size={20} className="opacity-80" />
+          </div>
+          <h3 className="text-3xl font-bold mt-2">{teachers.length}</h3>
+          <p className="text-xs opacity-75 mt-2 flex items-center gap-1">اضغط للإدارة والتحكم ←</p>
         </div>
-        <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-6 rounded-3xl text-white shadow-xl">
-          <p className="opacity-80 text-sm">إجمالي الفصول</p>
-          <h3 className="text-3xl font-bold">{classes.length}</h3>
+        <div 
+          onClick={() => setManagementModalTab('classes')}
+          className="bg-gradient-to-br from-blue-500 to-blue-700 p-6 rounded-3xl text-white shadow-xl cursor-pointer hover:scale-[1.02] transition-transform"
+          title="اضغط لفتح إدارة الفصول"
+        >
+          <div className="flex justify-between items-center">
+            <p className="opacity-80 text-sm font-medium">إجمالي الفصول</p>
+            <Users size={20} className="opacity-80" />
+          </div>
+          <h3 className="text-3xl font-bold mt-2">{classes.length}</h3>
+          <p className="text-xs opacity-75 mt-2 flex items-center gap-1">اضغط للإدارة والتحكم ←</p>
         </div>
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-center">
           <div className="text-center">
