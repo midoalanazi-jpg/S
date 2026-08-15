@@ -61,17 +61,23 @@ const AdminView = () => {
 
   const addClass = async () => {
     if (!newClassName.trim()) return;
-    const { data, error } = await supabase
-      .from('classes')
-      .insert([{ name: newClassName, schedule: {} }])
-      .select();
-    
-    if (error) {
-      alert('خطأ في إضافة الفصل');
-    } else {
-      setClasses([...classes, data[0]]);
-      setNewClassName('');
-      alert('تم إضافة الفصل بنجاح');
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .insert([{ name: newClassName, schedule: {} }])
+        .select();
+      
+      if (error) {
+        console.error('Add class error:', error);
+        alert(`خطأ في إضافة الفصل: ${error.message || JSON.stringify(error)}`);
+      } else {
+        setClasses([...classes, data[0]]);
+        setNewClassName('');
+        alert('تم إضافة الفصل بنجاح');
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      alert(`خطأ غير متوقع: ${err.message || err}`);
     }
   };
 
@@ -84,24 +90,30 @@ const AdminView = () => {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('teachers')
-      .insert([{ 
-        name: newTeacherName, 
-        assignments: teacherAssignments,
-        leader_of: teacherLeaderships
-      }])
-      .select();
-    
-    if (error) {
-      alert('خطأ في إضافة المعلم');
-    } else {
-      setTeachers([...teachers, data[0]]);
-      setNewTeacherName('');
-      setTeacherAssignments({});
-      setTeacherLeaderships([]);
-      setShowTeacherModal(false);
-      alert('تم إضافة المعلم بنجاح');
+    try {
+      const { data, error } = await supabase
+        .from('teachers')
+        .insert([{ 
+          name: newTeacherName, 
+          assignments: teacherAssignments,
+          leader_of: teacherLeaderships
+        }])
+        .select();
+      
+      if (error) {
+        console.error('Add teacher error:', error);
+        alert(`خطأ في إضافة المعلم: ${error.message || JSON.stringify(error)}`);
+      } else {
+        setTeachers([...teachers, data[0]]);
+        setNewTeacherName('');
+        setTeacherAssignments({});
+        setTeacherLeaderships([]);
+        setShowTeacherModal(false);
+        alert('تم إضافة المعلم بنجاح');
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      alert(`خطأ غير متوقع: ${err.message || err}`);
     }
   };
 
@@ -120,6 +132,8 @@ const AdminView = () => {
     const { error } = await supabase.from('classes').delete().eq('id', id);
     if (!error) {
       setClasses(classes.filter(c => c.id !== id));
+    } else {
+      alert(`خطأ في حذف الفصل: ${error.message || JSON.stringify(error)}`);
     }
   };
 
@@ -127,6 +141,8 @@ const AdminView = () => {
     const { error } = await supabase.from('teachers').delete().eq('id', id);
     if (!error) {
       setTeachers(teachers.filter(t => t.id !== id));
+    } else {
+      alert(`خطأ في حذف المعلم: ${error.message || JSON.stringify(error)}`);
     }
   };
 
@@ -142,7 +158,7 @@ const AdminView = () => {
       .eq('id', editingScheduleClassId);
 
     if (error) {
-      alert('خطأ في حفظ الجدول');
+      alert(`خطأ في حفظ الجدول: ${error.message || JSON.stringify(error)}`);
     } else {
       setClasses(classes.map(c => 
         c.id === editingScheduleClassId ? { ...c, schedule: tempSchedule } : c

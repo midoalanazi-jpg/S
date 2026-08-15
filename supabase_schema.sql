@@ -39,3 +39,10 @@ CREATE TABLE settings (
 INSERT INTO settings (key, value) VALUES 
 ('current_semester', 'الثاني'),
 ('current_year', '1447 هـ');
+
+-- تعطيل Row Level Security (RLS) أو تفعيل سياسات الوصول الكامل للجميع
+ALTER TABLE teachers DISABLE ROW LEVEL SECURITY;
+ALTER TABLE classes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE weekly_plans DISABLE ROW LEVEL SECURITY;
+ALTER TABLE settings DISABLE ROW LEVEL SECURITY;
+
