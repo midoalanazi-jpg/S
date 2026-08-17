@@ -298,7 +298,7 @@ const AdminView = () => {
     }
   };
 
-  // Export Logic with localStorage persistence
+  // Export Logic with localStorage persistence (week, semester, and year are persisted, date always defaults to today's live Hijri date)
   const [exportConfig, setExportConfig] = useState(() => {
     const todayHijri = getTodayHijriFormatted();
     try {
@@ -310,7 +310,7 @@ const AdminView = () => {
           weekNumber: parsed.weekNumber !== undefined ? parsed.weekNumber : '11',
           semester: parsed.semester || 'الثاني',
           year: parsed.year || '1447 هـ',
-          hijriDate: parsed.hijriDate || todayHijri
+          hijriDate: todayHijri // Always calculate and default to today's live date!
         };
       }
     } catch (e) {
@@ -325,14 +325,19 @@ const AdminView = () => {
     };
   });
 
-  // Auto-save exportConfig changes to localStorage
+  // Auto-save exportConfig changes to localStorage (excluding static date so it always calculates today's date fresh)
   useEffect(() => {
     try {
-      localStorage.setItem('admin_export_config', JSON.stringify(exportConfig));
+      localStorage.setItem('admin_export_config', JSON.stringify({
+        classId: exportConfig.classId,
+        weekNumber: exportConfig.weekNumber,
+        semester: exportConfig.semester,
+        year: exportConfig.year
+      }));
     } catch (e) {
       console.error('Error saving export config:', e);
     }
-  }, [exportConfig]);
+  }, [exportConfig.classId, exportConfig.weekNumber, exportConfig.semester, exportConfig.year]);
 
   const formatHijriDate = (dateStr) => {
     if (!dateStr) return '';
