@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, Trash2, Save, Download, 
   User, Users, ChevronRight, FileText, CheckCircle2,
-  Calendar, X, Layout, KeyRound, Lock, Eye, EyeOff, ShieldCheck, Search, Edit2, RotateCcw
+  Calendar, X, Layout, KeyRound, Lock, Eye, EyeOff, ShieldCheck, Search, Edit2, RotateCcw,
+  Star, Bookmark, Smartphone, Monitor, Check
 } from 'lucide-react';
 import HijriDatePicker from '@mk01/react-hijri-date-picker';
 
@@ -49,9 +50,23 @@ const AdminView = () => {
   const [editingPasswordVal, setEditingPasswordVal] = useState('');
   const [passwordSearchQuery, setPasswordSearchQuery] = useState('');
 
+  // Bookmark Prompt State
+  const [showBookmarkPrompt, setShowBookmarkPrompt] = useState(false);
+  const [bookmarkGuideStep, setBookmarkGuideStep] = useState('ask'); // 'ask' | 'guide'
+
   // Load data from Supabase
   useEffect(() => {
     fetchInitialData();
+
+    // Check if user previously chose "لا تسألني مرة أخرى"
+    const dontAsk = localStorage.getItem('admin_bookmark_dont_ask');
+    if (dontAsk !== 'true') {
+      const timer = setTimeout(() => {
+        setShowBookmarkPrompt(true);
+        setBookmarkGuideStep('ask');
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   const fetchInitialData = async () => {
@@ -942,6 +957,104 @@ const AdminView = () => {
                 إغلاق
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bookmark Prompt Modal */}
+      {showBookmarkPrompt && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-7 space-y-6 animate-in zoom-in-95 border border-slate-100">
+            {bookmarkGuideStep === 'ask' ? (
+              /* Step 1: Ask user */
+              <div className="space-y-6 text-center">
+                <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-3xl flex items-center justify-center mx-auto shadow-inner border border-amber-100 animate-bounce">
+                  <Star size={32} className="fill-amber-400 text-amber-500" />
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold text-slate-900">إضافة لوحة الإدارة للمفضلة ⭐</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                    هل ترغب في حفظ لوحة تحكم الإدارة في المفضلة بمتصفحك لسهولة وسرعة الوصول إليها دائماً؟
+                  </p>
+                </div>
+
+                <div className="space-y-2.5 pt-2">
+                  <button
+                    onClick={() => setBookmarkGuideStep('guide')}
+                    className="w-full py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-2xl font-bold shadow-lg shadow-amber-200 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Bookmark size={18} /> نعم، إضافة للمفضلة
+                  </button>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowBookmarkPrompt(false)}
+                      className="w-1/2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs transition-all"
+                    >
+                      تذكيري لاحقاً
+                    </button>
+                    <button
+                      onClick={() => {
+                        localStorage.setItem('admin_bookmark_dont_ask', 'true');
+                        setShowBookmarkPrompt(false);
+                      }}
+                      className="w-1/2 py-3 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-xl font-bold text-xs transition-all border border-slate-100 hover:border-red-100"
+                    >
+                      لا تسألني مرة أخرى
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Step 2: Visual Guide for Bookmarking */
+              <div className="space-y-6 text-center">
+                <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                  <Bookmark size={28} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <h3 className="text-xl font-bold text-slate-900">طريقة الحفظ بالمفضلة</h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    اتبع الخطوات البسيطة حسب جهازك الحالي:
+                  </p>
+                </div>
+
+                <div className="space-y-3 text-right">
+                  {/* Computer Instructions */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                      <Monitor size={16} className="text-indigo-600" />
+                      <span>على الكمبيوتر / اللابتوب:</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      اضغط على المفاتيح: <kbd className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-indigo-600 font-bold font-mono shadow-sm">Ctrl + D</kbd> (أو <kbd className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-indigo-600 font-bold font-mono shadow-sm">⌘ Cmd + D</kbd> للماك) ثم اضغط <b>تم (Done)</b>.
+                    </p>
+                  </div>
+
+                  {/* Mobile Instructions */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                      <Smartphone size={16} className="text-amber-600" />
+                      <span>على الجوال (Safari / Chrome):</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      اضغط على زر المشاركة (📤 أو ⋮) في متصفحك ثم اختر <b>«إضافة إشارة مرجعية»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b>.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    localStorage.setItem('admin_bookmark_dont_ask', 'true');
+                    setShowBookmarkPrompt(false);
+                  }}
+                  className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-bold shadow-lg shadow-green-100 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
+                >
+                  <Check size={18} /> تم الحفظ في المفضلة
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
