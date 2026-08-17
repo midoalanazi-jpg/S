@@ -90,7 +90,7 @@ const AdminView = () => {
       setAdminPin('');
       setShowPasswordsModal(true);
     } else {
-      setPinError('رمز الدخول غير صحيح! (الرمز السري هو 1000)');
+      setPinError('رمز الدخول غير صحيح!');
     }
   };
 
@@ -739,7 +739,7 @@ const AdminView = () => {
                     setAdminPin(e.target.value);
                     if (pinError) setPinError('');
                   }}
-                  placeholder="أدخل الرمز (1000)..."
+                  placeholder="أدخل الرمز السري..."
                   className="w-full p-4 bg-slate-50 text-center text-xl tracking-widest font-black rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                 />
                 {pinError && (
