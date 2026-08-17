@@ -553,14 +553,6 @@ const AdminView = () => {
             <KeyRound size={16} className="text-amber-600" />
             <span>كلمات سر المعلمين</span>
           </button>
-
-          <button 
-            onClick={() => window.print()}
-            className="p-3 bg-gray-100 text-gray-600 rounded-2xl hover:bg-gray-200 transition-all shadow-sm"
-            title="تصدير"
-          >
-            <Download size={20} />
-          </button>
         </div>
       </div>
 
