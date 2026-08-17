@@ -42,8 +42,14 @@ const AdminView = () => {
 
   // Passwords Management & PIN State
   const [showPinModal, setShowPinModal] = useState(false);
+  const [storedAdminPin, setStoredAdminPin] = useState('');
   const [adminPin, setAdminPin] = useState('');
   const [pinError, setPinError] = useState('');
+  const [failedPinAttempts, setFailedPinAttempts] = useState(0);
+  const [isSettingNewPin, setIsSettingNewPin] = useState(false);
+  const [newPinVal, setNewPinVal] = useState('');
+  const [confirmPinVal, setConfirmPinVal] = useState('');
+
   const [showPasswordsModal, setShowPasswordsModal] = useState(false);
   const [teacherPasswords, setTeacherPasswords] = useState({});
   const [revealedPasswords, setRevealedPasswords] = useState({});
@@ -81,6 +87,7 @@ const AdminView = () => {
       const { data: tchData } = await supabase.from('teachers').select('*').order('created_at');
       const { data: plansData } = await supabase.from('weekly_plans').select('*');
       const { data: pwdSetting } = await supabase.from('settings').select('*').eq('key', 'teacher_passwords').maybeSingle();
+      const { data: adminPinSetting } = await supabase.from('settings').select('*').eq('key', 'admin_pin').maybeSingle();
       
       let passwordsObj = {};
       if (pwdSetting && pwdSetting.value) {
@@ -90,6 +97,9 @@ const AdminView = () => {
           console.error('Error parsing teacher passwords:', e);
         }
       }
+
+      const savedPin = adminPinSetting?.value || localStorage.getItem('admin_master_pin') || '';
+      setStoredAdminPin(savedPin);
 
       setClasses(clsData || []);
       setTeachers(tchData || []);
@@ -148,15 +158,86 @@ const AdminView = () => {
     }
   };
 
+  const handleOpenPinModal = () => {
+    setAdminPin('');
+    setPinError('');
+    setNewPinVal('');
+    setConfirmPinVal('');
+    if (!storedAdminPin) {
+      setIsSettingNewPin(true);
+    } else {
+      setIsSettingNewPin(false);
+    }
+    setShowPinModal(true);
+  };
+
+  const handleSaveNewAdminPin = async (e) => {
+    if (e) e.preventDefault();
+    const pin = newPinVal.trim();
+    if (!pin) {
+      setPinError('يرجى إدخال رمز سري صالح (أرقام أو حروف)');
+      return;
+    }
+    if (pin.length < 3) {
+      setPinError('يجب أن يتكون الرمز السري من 3 خانات على الأقل');
+      return;
+    }
+    if (confirmPinVal.trim() && pin !== confirmPinVal.trim()) {
+      setPinError('الرمزان غير متطابقين!');
+      return;
+    }
+
+    try {
+      await supabase.from('settings').upsert({
+        key: 'admin_pin',
+        value: pin
+      });
+      localStorage.setItem('admin_master_pin', pin);
+      setStoredAdminPin(pin);
+      setFailedPinAttempts(0);
+      setIsSettingNewPin(false);
+      setShowPinModal(false);
+      setAdminPin('');
+      setNewPinVal('');
+      setConfirmPinVal('');
+      setPinError('');
+      setShowPasswordsModal(true);
+      alert('✅ تم تعيين الرمز السري بنجاح وفتح لوحة كلمات السر');
+    } catch (err) {
+      console.error('Error saving admin pin:', err);
+      setPinError('حدث خطأ أثناء حفظ الرمز السري');
+    }
+  };
+
   const handleVerifyAdminPin = (e) => {
     if (e) e.preventDefault();
-    if (adminPin.trim() === '1000') {
+    const entered = adminPin.trim();
+
+    if (!storedAdminPin) {
+      setIsSettingNewPin(true);
+      return;
+    }
+
+    if (entered === storedAdminPin) {
+      setFailedPinAttempts(0);
       setShowPinModal(false);
       setPinError('');
       setAdminPin('');
       setShowPasswordsModal(true);
     } else {
-      setPinError('رمز الدخول غير صحيح!');
+      const nextAttempts = failedPinAttempts + 1;
+      setFailedPinAttempts(nextAttempts);
+
+      if (nextAttempts >= 5) {
+        setIsSettingNewPin(true);
+        setAdminPin('');
+        setNewPinVal('');
+        setConfirmPinVal('');
+        setPinError('⚠️ تم إدخال الرمز خطأ 5 مرات متتالية. يرجى تعيين رمز سري جديد الآن.');
+      } else {
+        const remaining = 5 - nextAttempts;
+        setPinError(`رمز الدخول غير صحيح! المحاولة (${nextAttempts}/5) - متبقي ${remaining} محاولات`);
+      }
     }
   };
 
@@ -465,11 +546,7 @@ const AdminView = () => {
           </button>
 
           <button 
-            onClick={() => {
-              setAdminPin('');
-              setPinError('');
-              setShowPinModal(true);
-            }}
+            onClick={handleOpenPinModal}
             className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-800 hover:bg-amber-100 rounded-2xl font-bold text-xs border border-amber-200 shadow-sm transition-all active:scale-95"
             title="كلمات سر المعلمين"
           >
@@ -803,60 +880,148 @@ const AdminView = () => {
         </div>
       )}
 
-      {/* PIN Verification Modal (1000) */}
+      {/* PIN Verification & Reset Modal */}
       {showPinModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in" dir="rtl">
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-7 space-y-6 animate-in zoom-in-95 border border-slate-100">
-            <div className="text-center space-y-2">
-              <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
-                <Lock size={28} />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900">الرمز السري</h3>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                أدخل الرمز السري لعرض كلمات سر المعلمين
-              </p>
-            </div>
-
-            <form onSubmit={handleVerifyAdminPin} className="space-y-4">
-              <div>
-                <input 
-                  type="password"
-                  autoFocus
-                  value={adminPin}
-                  onChange={(e) => {
-                    setAdminPin(e.target.value);
-                    if (pinError) setPinError('');
-                  }}
-                  placeholder="أدخل الرمز السري..."
-                  className="w-full p-4 bg-slate-50 text-center text-xl tracking-widest font-black rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all"
-                />
-                {pinError && (
-                  <p className="text-xs font-bold text-red-500 text-center mt-2.5 bg-red-50 p-2.5 rounded-xl border border-red-100">
-                    {pinError}
+            {isSettingNewPin ? (
+              // شاشة تعيين رمز سري جديد
+              <>
+                <div className="text-center space-y-2">
+                  <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                    <KeyRound size={28} />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900">
+                    {storedAdminPin ? 'إعادة تعيين الرمز السري' : 'تعيين رمز سري جديد'}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                    حدد رمزاً سرياً خاصاً بالمدير لحماية كلمات سر المعلمين وإعدادات النظام
                   </p>
-                )}
-              </div>
+                </div>
 
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPinModal(false);
-                    setAdminPin('');
-                    setPinError('');
-                  }}
-                  className="w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-sm transition-all"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="w-2/3 py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-200 transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <KeyRound size={16} /> فتح اللوحة
-                </button>
-              </div>
-            </form>
+                <form onSubmit={handleSaveNewAdminPin} className="space-y-3.5">
+                  <div className="space-y-2.5">
+                    <input 
+                      type="password"
+                      autoFocus
+                      value={newPinVal}
+                      onChange={(e) => {
+                        setNewPinVal(e.target.value);
+                        if (pinError) setPinError('');
+                      }}
+                      placeholder="أدخل الرمز السري الجديد..."
+                      className="w-full p-3.5 bg-slate-50 text-center text-lg tracking-widest font-black rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                    />
+
+                    <input 
+                      type="password"
+                      value={confirmPinVal}
+                      onChange={(e) => {
+                        setConfirmPinVal(e.target.value);
+                        if (pinError) setPinError('');
+                      }}
+                      placeholder="تأكيد الرمز السري..."
+                      className="w-full p-3.5 bg-slate-50 text-center text-lg tracking-widest font-black rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                    />
+
+                    {pinError && (
+                      <p className="text-xs font-bold text-red-500 text-center mt-2 bg-red-50 p-2.5 rounded-xl border border-red-100">
+                        {pinError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPinModal(false);
+                        setPinError('');
+                        setIsSettingNewPin(false);
+                      }}
+                      className="w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-xs transition-all"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      className="w-2/3 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                    >
+                      <Save size={16} /> حفظ وفتح اللوحة
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              // شاشة إدخال الرمز السري للتحقق
+              <>
+                <div className="text-center space-y-2">
+                  <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                    <Lock size={28} />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900">الرمز السري للمدير</h3>
+                  <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                    أدخل الرمز السري للوصول إلى كلمات سر المعلمين
+                  </p>
+                </div>
+
+                <form onSubmit={handleVerifyAdminPin} className="space-y-4">
+                  <div>
+                    <input 
+                      type="password"
+                      autoFocus
+                      value={adminPin}
+                      onChange={(e) => {
+                        setAdminPin(e.target.value);
+                        if (pinError) setPinError('');
+                      }}
+                      placeholder="أدخل الرمز السري..."
+                      className="w-full p-4 bg-slate-50 text-center text-xl tracking-widest font-black rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all"
+                    />
+                    {pinError && (
+                      <p className="text-xs font-bold text-red-500 text-center mt-2.5 bg-red-50 p-2.5 rounded-xl border border-red-100 leading-relaxed">
+                        {pinError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSettingNewPin(true);
+                        setPinError('');
+                        setNewPinVal('');
+                        setConfirmPinVal('');
+                      }}
+                      className="text-[11px] text-amber-700 hover:text-amber-900 font-bold hover:underline"
+                    >
+                      نسيت الرمز السري؟ اضغط لتعيين رمز جديد
+                    </button>
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPinModal(false);
+                        setAdminPin('');
+                        setPinError('');
+                      }}
+                      className="w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-xs transition-all"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      className="w-2/3 py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-xs shadow-lg shadow-amber-200 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                    >
+                      <KeyRound size={16} /> فتح اللوحة
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}
