@@ -405,7 +405,6 @@ function TeacherView() {
             )}
           </div>
           <div className="text-center mt-6 text-slate-500 opacity-80">
-            <p className="text-sm font-light mb-1">تقبلو تحياتي</p>
             <p className="text-sm font-bold tracking-wide text-indigo-600">برنامج نصابي</p>
           </div>
         </div>
