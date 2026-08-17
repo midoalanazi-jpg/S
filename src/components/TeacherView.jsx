@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Send, User, Users, Calendar, 
   BookOpen, Target, Home, StickyNote,
-  AlertCircle, X, Save, Plus, CheckCircle2, ChevronRight
+  AlertCircle, X, Save, Plus, CheckCircle2, ChevronRight,
+  Lock, KeyRound, Eye, EyeOff, ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -20,6 +21,12 @@ function TeacherView() {
   const [teachers, setTeachers] = useState([]);
   const [classes, setClasses] = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [teacherPasswords, setTeacherPasswords] = useState({});
+  const [enteredPassword, setEnteredPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const [planData, setPlanData] = useState({});
   const [activeCell, setActiveCell] = useState(null); // { day, period, slotInfo }
   const [selectedCells, setSelectedCells] = useState([]); // Array of { day, period, slotInfo }
@@ -36,8 +43,20 @@ function TeacherView() {
     try {
       const { data: clsData } = await supabase.from('classes').select('*');
       const { data: tchData } = await supabase.from('teachers').select('*');
+      const { data: pwdSetting } = await supabase.from('settings').select('*').eq('key', 'teacher_passwords').maybeSingle();
+
+      let passwordsObj = {};
+      if (pwdSetting && pwdSetting.value) {
+        try {
+          passwordsObj = typeof pwdSetting.value === 'string' ? JSON.parse(pwdSetting.value) : pwdSetting.value;
+        } catch (e) {
+          console.error('Error parsing teacher passwords:', e);
+        }
+      }
+
       setClasses(clsData || []);
       setTeachers(tchData || []);
+      setTeacherPasswords(passwordsObj || {});
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -82,10 +101,10 @@ function TeacherView() {
 
   // Load plans for this teacher from Supabase
   useEffect(() => {
-    if (selectedTeacherId) {
+    if (selectedTeacherId && isAuthenticated) {
       fetchTeacherPlans();
     }
-  }, [selectedTeacherId]);
+  }, [selectedTeacherId, isAuthenticated]);
 
   const fetchTeacherPlans = async () => {
     const { data, error } = await supabase
@@ -180,26 +199,211 @@ function TeacherView() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  if (!selectedTeacherId) {
+  const handleSetNewPassword = async (e) => {
+    if (e) e.preventDefault();
+    if (!newPassword.trim()) {
+      setLoginError('يرجى كتابة كلمة المرور (حرف أو رقم على الأقل)');
+      return;
+    }
+    setIsLoading(true);
+    setLoginError('');
+    try {
+      const updatedPasswords = { ...teacherPasswords, [selectedTeacherId]: newPassword.trim() };
+      await supabase.from('settings').upsert({
+        key: 'teacher_passwords',
+        value: JSON.stringify(updatedPasswords)
+      });
+
+      // Update local state
+      setTeacherPasswords(updatedPasswords);
+      setIsAuthenticated(true);
+      setNewPassword('');
+    } catch (err) {
+      console.error('Error setting password:', err);
+      setLoginError('حدث خطأ أثناء حفظ كلمة المرور، يرجى المحاولة لاحقاً');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyPassword = (e) => {
+    if (e) e.preventDefault();
+    const currentPass = teacherPasswords[selectedTeacherId] || teachers.find(t => t.id === selectedTeacherId)?.assignments?._password;
+    if (enteredPassword.trim() === String(currentPass).trim()) {
+      setIsAuthenticated(true);
+      setLoginError('');
+      setEnteredPassword('');
+    } else {
+      setLoginError('كلمة المرور غير صحيحة، يرجى المحاولة مجدداً');
+    }
+  };
+
+  const handleLogoutTeacher = () => {
+    setSelectedTeacherId('');
+    setIsAuthenticated(false);
+    setEnteredPassword('');
+    setNewPassword('');
+    setLoginError('');
+  };
+
+  // Check if current selected teacher has a password
+  const currentSelectedTeacher = teachers.find(t => t.id === selectedTeacherId);
+  const teacherStoredPassword = selectedTeacherId ? (teacherPasswords[selectedTeacherId] || currentSelectedTeacher?.assignments?._password) : null;
+  const isFirstTimeTeacher = selectedTeacherId && !teacherStoredPassword;
+
+  if (!selectedTeacherId || !isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
-          <div className="bg-white p-8 rounded-[2rem] shadow-xl w-full border border-slate-100">
-          <h1 className="text-2xl font-bold text-center text-slate-900 mb-8">تسجيل دخول المعلم</h1>
-          <div className="space-y-6">
-            <div>
-              <label className="text-xs font-bold text-slate-400 mb-2 block mr-1">اسم المعلم</label>
-              <select 
-                value={selectedTeacherId}
-                onChange={(e) => setSelectedTeacherId(e.target.value)}
-                className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700 outline-none transition-all"
-              >
-                <option value="">-- اختر من القائمة --</option>
-                {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-xl w-full border border-slate-100 space-y-6 animate-in fade-in">
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                <Lock size={28} />
+              </div>
+              <h1 className="text-2xl font-bold text-slate-900">بوابة المعلم</h1>
+              <p className="text-xs text-slate-400 font-medium">تسجيل الدخول والتحضير الأسبوعي</p>
             </div>
+
+            {!selectedTeacherId ? (
+              /* Step 1: Select Teacher Name */
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 mb-2 block mr-1">اختر اسمك من القائمة</label>
+                  <select 
+                    value={selectedTeacherId}
+                    onChange={(e) => {
+                      setSelectedTeacherId(e.target.value);
+                      setLoginError('');
+                      setEnteredPassword('');
+                      setNewPassword('');
+                    }}
+                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700 outline-none transition-all"
+                  >
+                    <option value="">-- اختر المعلم --</option>
+                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            ) : isFirstTimeTeacher ? (
+              /* Step 2: First Time -> Set Password */
+              <form onSubmit={handleSetNewPassword} className="space-y-4 animate-in fade-in">
+                <div className="bg-indigo-50/70 p-4 rounded-2xl border border-indigo-100">
+                  <p className="text-xs font-bold text-indigo-900">مرحباً بك أ. {currentSelectedTeacher?.name}</p>
+                  <p className="text-[11px] text-indigo-600 mt-1 leading-relaxed">
+                    هذه المرة الأولى لدخولك. يرجى ضبط كلمة سر خاصة بحسابك (يمكن أن تكون حرفاً أو رقماً أو كلمة):
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 mr-1">كلمة المرور الجديدة</label>
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? 'text' : 'password'}
+                      autoFocus
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        if (loginError) setLoginError('');
+                      }}
+                      placeholder="أدخل كلمة السر الجديدة..."
+                      className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 outline-none transition-all pl-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {loginError && (
+                  <p className="text-xs font-bold text-red-500 bg-red-50 p-3 rounded-xl border border-red-100">
+                    {loginError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <KeyRound size={18} /> تعيين كلمة المرور والمتابعة
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLogoutTeacher}
+                  className="w-full py-2 text-xs font-bold text-slate-400 hover:text-slate-600 transition-all text-center"
+                >
+                  ← اختيار معلم آخر
+                </button>
+              </form>
+            ) : (
+              /* Step 3: Existing Password -> Enter Password */
+              <form onSubmit={handleVerifyPassword} className="space-y-4 animate-in fade-in">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">المعلم المختار</span>
+                    <span className="font-bold text-slate-800 text-sm">أ. {currentSelectedTeacher?.name}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleLogoutTeacher}
+                    className="text-xs font-bold text-indigo-600 hover:underline"
+                  >
+                    تغيير
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 mr-1">كلمة المرور</label>
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? 'text' : 'password'}
+                      autoFocus
+                      value={enteredPassword}
+                      onChange={(e) => {
+                        setEnteredPassword(e.target.value);
+                        if (loginError) setLoginError('');
+                      }}
+                      placeholder="أدخل كلمة المرور..."
+                      className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 outline-none transition-all pl-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {loginError && (
+                  <p className="text-xs font-bold text-red-500 bg-red-50 p-3 rounded-xl border border-red-100">
+                    {loginError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Lock size={18} /> دخول إلى الجدول
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLogoutTeacher}
+                  className="w-full py-2 text-xs font-bold text-slate-400 hover:text-slate-600 transition-all text-center"
+                >
+                  ← اختيار معلم آخر
+                </button>
+              </form>
+            )}
           </div>
-        </div>
           <div className="text-center mt-6 text-slate-500 opacity-80">
             <p className="text-sm font-light mb-1">تقبلو تحياتي</p>
             <p className="text-sm font-light tracking-widest">ابو انس</p>
@@ -228,10 +432,10 @@ function TeacherView() {
         <div className="flex items-center gap-4">
           <span className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full">{saveStatus}</span>
           <button 
-            onClick={() => { setSelectedTeacherId(''); }}
-            className="text-sm font-bold text-slate-400 hover:text-slate-600"
+            onClick={handleLogoutTeacher}
+            className="text-sm font-bold text-slate-400 hover:text-slate-600 transition-all flex items-center gap-1"
           >
-            تغيير المعلم
+            ← تغيير المعلم
           </button>
         </div>
       </div>

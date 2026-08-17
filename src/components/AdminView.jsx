@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, Trash2, Save, Download, 
   User, Users, ChevronRight, FileText, CheckCircle2,
-  Calendar, X, Layout
+  Calendar, X, Layout, KeyRound, Lock, Eye, EyeOff, ShieldCheck, Search, Edit2, RotateCcw
 } from 'lucide-react';
 import HijriDatePicker from '@mk01/react-hijri-date-picker';
 
@@ -38,6 +38,17 @@ const AdminView = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [managementModalTab, setManagementModalTab] = useState(null); // 'classes' | 'teachers' | null
 
+  // Passwords Management & PIN State
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [adminPin, setAdminPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [showPasswordsModal, setShowPasswordsModal] = useState(false);
+  const [teacherPasswords, setTeacherPasswords] = useState({});
+  const [revealedPasswords, setRevealedPasswords] = useState({});
+  const [editingTeacherId, setEditingTeacherId] = useState(null);
+  const [editingPasswordVal, setEditingPasswordVal] = useState('');
+  const [passwordSearchQuery, setPasswordSearchQuery] = useState('');
+
   // Load data from Supabase
   useEffect(() => {
     fetchInitialData();
@@ -49,14 +60,91 @@ const AdminView = () => {
       const { data: clsData } = await supabase.from('classes').select('*').order('created_at');
       const { data: tchData } = await supabase.from('teachers').select('*').order('created_at');
       const { data: plansData } = await supabase.from('weekly_plans').select('*');
+      const { data: pwdSetting } = await supabase.from('settings').select('*').eq('key', 'teacher_passwords').maybeSingle();
       
+      let passwordsObj = {};
+      if (pwdSetting && pwdSetting.value) {
+        try {
+          passwordsObj = typeof pwdSetting.value === 'string' ? JSON.parse(pwdSetting.value) : pwdSetting.value;
+        } catch (e) {
+          console.error('Error parsing teacher passwords:', e);
+        }
+      }
+
       setClasses(clsData || []);
       setTeachers(tchData || []);
       setWeeklyPlans(plansData || []);
+      setTeacherPasswords(passwordsObj || {});
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleVerifyAdminPin = (e) => {
+    if (e) e.preventDefault();
+    if (adminPin.trim() === '1000') {
+      setShowPinModal(false);
+      setPinError('');
+      setAdminPin('');
+      setShowPasswordsModal(true);
+    } else {
+      setPinError('رمز الدخول غير صحيح! (الرمز السري هو 1000)');
+    }
+  };
+
+  const handleSaveTeacherPassword = async (teacherId, newPwd) => {
+    if (!newPwd.trim()) {
+      alert('يرجى إدخال كلمة مرور صالحة (حرف أو رقم على الأقل)');
+      return;
+    }
+    try {
+      const updated = { ...teacherPasswords, [teacherId]: newPwd.trim() };
+      await supabase.from('settings').upsert({
+        key: 'teacher_passwords',
+        value: JSON.stringify(updated)
+      });
+
+      // Also update assignments._password as backup
+      const teacher = teachers.find(t => t.id === teacherId);
+      if (teacher) {
+        const updatedAssignments = { ...(teacher.assignments || {}), _password: newPwd.trim() };
+        await supabase.from('teachers').update({ assignments: updatedAssignments }).eq('id', teacherId);
+      }
+
+      setTeacherPasswords(updated);
+      setEditingTeacherId(null);
+      setEditingPasswordVal('');
+      alert('تم تحديث كلمة المرور بنجاح');
+    } catch (err) {
+      console.error('Error saving teacher password:', err);
+      alert('حدث خطأ في حفظ كلمة المرور');
+    }
+  };
+
+  const handleResetTeacherPassword = async (teacherId) => {
+    if (!window.confirm('هل أنت متأكد من رغبتك في مسح كلمة المرور لهذا المعلم؟ سيطلب منه النظام تعيين كلمة مرور جديدة عند دخوله القادم.')) return;
+    try {
+      const updated = { ...teacherPasswords };
+      delete updated[teacherId];
+      await supabase.from('settings').upsert({
+        key: 'teacher_passwords',
+        value: JSON.stringify(updated)
+      });
+
+      const teacher = teachers.find(t => t.id === teacherId);
+      if (teacher && teacher.assignments) {
+        const updatedAssignments = { ...teacher.assignments };
+        delete updatedAssignments._password;
+        await supabase.from('teachers').update({ assignments: updatedAssignments }).eq('id', teacherId);
+      }
+
+      setTeacherPasswords(updated);
+      alert('تم مسح كلمة المرور بنجاح.');
+    } catch (err) {
+      console.error('Error resetting password:', err);
+      alert('حدث خطأ في مسح كلمة المرور');
     }
   };
 
@@ -287,10 +375,23 @@ const AdminView = () => {
           <h1 className="text-2xl font-bold text-gray-900">لوحة تحكم المدير</h1>
           <p className="text-sm text-gray-500 font-medium">إدارة الفصول والمعلمين والخطط</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => {
+              setAdminPin('');
+              setPinError('');
+              setShowPinModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-800 hover:bg-amber-100 rounded-2xl font-bold text-xs border border-amber-200 shadow-sm transition-all active:scale-95"
+            title="كلمات سر المعلمين"
+          >
+            <KeyRound size={16} className="text-amber-600" />
+            <span>كلمات سر المعلمين</span>
+          </button>
+
           <button 
             onClick={() => window.print()}
-            className="p-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-all"
+            className="p-3 bg-gray-100 text-gray-600 rounded-2xl hover:bg-gray-200 transition-all shadow-sm"
             title="تصدير"
           >
             <Download size={20} />
@@ -606,6 +707,237 @@ const AdminView = () => {
               <button
                 onClick={() => setManagementModalTab(null)}
                 className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition-all text-sm"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PIN Verification Modal (1000) */}
+      {showPinModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-7 space-y-6 animate-in zoom-in-95 border border-slate-100">
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                <Lock size={28} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">الرمز السري</h3>
+              <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                أدخل الرمز السري لعرض كلمات سر المعلمين
+              </p>
+            </div>
+
+            <form onSubmit={handleVerifyAdminPin} className="space-y-4">
+              <div>
+                <input 
+                  type="password"
+                  autoFocus
+                  value={adminPin}
+                  onChange={(e) => {
+                    setAdminPin(e.target.value);
+                    if (pinError) setPinError('');
+                  }}
+                  placeholder="أدخل الرمز (1000)..."
+                  className="w-full p-4 bg-slate-50 text-center text-xl tracking-widest font-black rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all"
+                />
+                {pinError && (
+                  <p className="text-xs font-bold text-red-500 text-center mt-2.5 bg-red-50 p-2.5 rounded-xl border border-red-100">
+                    {pinError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPinModal(false);
+                    setAdminPin('');
+                    setPinError('');
+                  }}
+                  className="w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-sm transition-all"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="w-2/3 py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <KeyRound size={16} /> فتح اللوحة
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Teacher Passwords Management Modal */}
+      {showPasswordsModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in">
+          <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="p-6 bg-amber-50/80 border-b border-amber-100 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="bg-amber-500 text-white p-3 rounded-2xl shadow-sm">
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-amber-950">كلمات سر المعلمين</h3>
+                  <p className="text-xs text-amber-700 font-medium">عرض، تعديل، وإعادة تعيين كلمات مرور المعلمين</p>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => {
+                  setShowPasswordsModal(false);
+                  setEditingTeacherId(null);
+                }}
+                className="p-2 hover:bg-amber-200/60 rounded-full transition-all text-amber-700 hover:text-amber-950"
+                title="إغلاق"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Search & Stats */}
+            <div className="p-5 border-b border-slate-100 bg-white flex flex-col sm:flex-row gap-4 justify-between items-center">
+              <div className="relative w-full sm:w-80">
+                <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input 
+                  type="text" 
+                  value={passwordSearchQuery}
+                  onChange={(e) => setPasswordSearchQuery(e.target.value)}
+                  placeholder="بحث باسم المعلم..."
+                  className="w-full pr-11 pl-4 py-2.5 bg-slate-50 rounded-2xl border border-slate-200 focus:bg-white focus:border-amber-400 outline-none text-xs font-bold"
+                />
+              </div>
+              <div className="text-xs font-bold text-slate-500">
+                إجمالي المعلمين: <span className="text-amber-600 font-black text-sm">{teachers.length}</span>
+              </div>
+            </div>
+
+            {/* Teachers List */}
+            <div className="flex-1 overflow-auto p-6 md:p-8 space-y-3">
+              {teachers
+                .filter(t => t.name.toLowerCase().includes(passwordSearchQuery.toLowerCase()))
+                .map(teacher => {
+                  const pwd = teacherPasswords[teacher.id] || teacher.assignments?._password || '';
+                  const isRevealed = revealedPasswords[teacher.id];
+                  const isEditing = editingTeacherId === teacher.id;
+
+                  return (
+                    <div 
+                      key={teacher.id}
+                      className="p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-amber-200 hover:bg-amber-50/20 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 bg-white rounded-2xl flex items-center justify-center text-slate-600 border border-slate-200 shadow-sm font-bold text-sm shrink-0">
+                          <User size={20} />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-sm">{teacher.name}</h4>
+                          <p className="text-[10px] text-slate-400">المعرف: {teacher.id.slice(-6)}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                        {isEditing ? (
+                          <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <input 
+                              type="text"
+                              autoFocus
+                              value={editingPasswordVal}
+                              onChange={(e) => setEditingPasswordVal(e.target.value)}
+                              placeholder="كلمة السر الجديدة..."
+                              className="px-3.5 py-2 bg-white border-2 border-amber-400 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500 w-40 font-mono"
+                            />
+                            <button
+                              onClick={() => handleSaveTeacherPassword(teacher.id, editingPasswordVal)}
+                              className="px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-bold hover:bg-amber-600 shadow-sm transition-all active:scale-95"
+                            >
+                              حفظ
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingTeacherId(null);
+                                setEditingPasswordVal('');
+                              }}
+                              className="px-2.5 py-2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                            >
+                              إلغاء
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-sm">
+                              <KeyRound size={15} className="text-amber-500" />
+                              {pwd ? (
+                                <span className="font-mono font-bold text-xs text-slate-800 tracking-wider">
+                                  {isRevealed ? pwd : '••••••••'}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-amber-600 font-bold italic">
+                                  لم تُضبط بعد
+                                </span>
+                              )}
+                              {pwd && (
+                                <button
+                                  type="button"
+                                  onClick={() => setRevealedPasswords(prev => ({ ...prev, [teacher.id]: !prev[teacher.id] }))}
+                                  className="text-slate-400 hover:text-slate-700 p-0.5"
+                                  title={isRevealed ? "إخفاء كلمة المرور" : "عرض كلمة المرور"}
+                                >
+                                  {isRevealed ? <EyeOff size={15} /> : <Eye size={15} />}
+                                </button>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingTeacherId(teacher.id);
+                                setEditingPasswordVal(pwd);
+                              }}
+                              className="p-2.5 text-slate-500 hover:text-amber-700 hover:bg-amber-100 rounded-xl transition-all border border-transparent hover:border-amber-200"
+                              title="تعديل أو تعيين كلمة المرور"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+
+                            {pwd && (
+                              <button
+                                type="button"
+                                onClick={() => handleResetTeacherPassword(teacher.id)}
+                                className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-200"
+                                title="مسح كلمة المرور (إعادة تعيين)"
+                              >
+                                <RotateCcw size={16} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {teachers.length === 0 && (
+                <div className="text-center py-12 text-slate-400 font-bold text-sm">
+                  لا يوجد معلمين مسجلين حالياً
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowPasswordsModal(false);
+                  setEditingTeacherId(null);
+                }}
+                className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-all"
               >
                 إغلاق
               </button>
