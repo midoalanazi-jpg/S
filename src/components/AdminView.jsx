@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Plus, Trash2, Save, Download, 
+  Plus, Trash2, Save, Download, Upload,
   User, Users, ChevronRight, FileText, CheckCircle2,
   Calendar, X, Layout, KeyRound, Lock, Eye, EyeOff, ShieldCheck, Search, Edit2, RotateCcw,
-  Star, Bookmark, Smartphone, Monitor, Check
+  Star, Bookmark, Smartphone, Monitor, Check, Sparkles, RefreshCw
 } from 'lucide-react';
 import HijriDatePicker from '@mk01/react-hijri-date-picker';
 
 import { supabase } from '../supabaseClient';
+import { parseNessabyBackup, importNessabyDataToSupabase } from '../utils/nessabyImporter';
 
 const DAYS = [
   { id: 'sun', name: 'الأحد' },
@@ -49,6 +50,12 @@ const AdminView = () => {
   const [editingTeacherId, setEditingTeacherId] = useState(null);
   const [editingPasswordVal, setEditingPasswordVal] = useState('');
   const [passwordSearchQuery, setPasswordSearchQuery] = useState('');
+
+  // Nessaby Import State
+  const [importPreviewData, setImportPreviewData] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importMode, setImportMode] = useState('replace'); // 'replace' | 'merge'
+  const fileInputRef = useRef(null);
 
   // Bookmark Prompt State
   const [showBookmarkPrompt, setShowBookmarkPrompt] = useState(false);
@@ -92,6 +99,52 @@ const AdminView = () => {
       console.error('Error fetching data:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch (jsonErr) {
+        alert('الملف المحدد تالف أو ليس بصيغة JSON صالحة.');
+        return;
+      }
+
+      const parsed = parseNessabyBackup(json);
+      if (!parsed.classes.length && !parsed.teachers.length) {
+        alert('الملف المحدد لا يحتوي على بيانات فصول أو معلمين.');
+        return;
+      }
+
+      setImportPreviewData(parsed);
+      setImportMode('replace');
+    } catch (err) {
+      console.error('Error parsing file:', err);
+      alert(`خطأ في قراءة ملف نصابي: ${err.message || err}`);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleExecuteImport = async () => {
+    if (!importPreviewData) return;
+    setIsImporting(true);
+    try {
+      await importNessabyDataToSupabase(importPreviewData, importMode === 'replace');
+      setImportPreviewData(null);
+      await fetchInitialData();
+      alert('✅ تم استيراد الجداول والفصول والمعلمين وإسنادات المواد بنجاح!');
+    } catch (err) {
+      console.error('Import execution error:', err);
+      alert(`❌ حدث خطأ أثناء الاستيراد: ${err.message || err}`);
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -394,6 +447,23 @@ const AdminView = () => {
           <p className="text-sm text-gray-500 font-medium">إدارة الفصول والمعلمين والخطط</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* زر استيراد جدول نصابي */}
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileSelect} 
+            accept=".nessaby,.json,application/json" 
+            className="hidden" 
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 rounded-2xl font-bold text-xs border border-emerald-200 shadow-sm transition-all active:scale-95"
+            title="استيراد جدول نصابي"
+          >
+            <Upload size={16} className="text-emerald-600" />
+            <span>استيراد جدول نصابي</span>
+          </button>
+
           <button 
             onClick={() => {
               setAdminPin('');
@@ -959,6 +1029,151 @@ const AdminView = () => {
               >
                 إغلاق
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Nessaby Import Preview & Confirmation Modal */}
+      {importPreviewData && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in" dir="rtl">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-6 md:p-8 space-y-6 border border-slate-100 animate-in zoom-in-95 text-right relative">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner border border-emerald-100">
+                  <Sparkles size={24} className="text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">استيراد جدول نصابي</h3>
+                  <p className="text-xs text-slate-500 font-bold">معاينة وتأكيد استيراد البيانات إلى النظام</p>
+                </div>
+              </div>
+              
+              {!isImporting && (
+                <button
+                  onClick={() => setImportPreviewData(null)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-all"
+                  title="إغلاق"
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-center">
+                <p className="text-[10px] text-slate-400 font-bold">المدرسة</p>
+                <p className="text-xs font-black text-slate-800 mt-1 truncate" title={importPreviewData.schoolName || 'نصابي'}>
+                  {importPreviewData.schoolName || 'نصابي'}
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-blue-50/60 border border-blue-100 rounded-2xl text-center">
+                <p className="text-[10px] text-blue-500 font-bold">الفصول</p>
+                <p className="text-lg font-black text-blue-700 mt-0.5">
+                  {importPreviewData.classes.length}
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-emerald-50/60 border border-emerald-100 rounded-2xl text-center">
+                <p className="text-[10px] text-emerald-600 font-bold">المعلمون</p>
+                <p className="text-lg font-black text-emerald-700 mt-0.5">
+                  {importPreviewData.teachers.length}
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-purple-50/60 border border-purple-100 rounded-2xl text-center">
+                <p className="text-[10px] text-purple-600 font-bold">الحصص</p>
+                <p className="text-lg font-black text-purple-700 mt-0.5">
+                  {importPreviewData.totalSlots}
+                </p>
+              </div>
+            </div>
+
+            {/* Mode Selection */}
+            <div className="space-y-2.5">
+              <label className="text-xs font-bold text-slate-700 block">طريقة الاستيراد:</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setImportMode('replace')}
+                  disabled={isImporting}
+                  className={`p-4 rounded-2xl border text-right transition-all flex flex-col justify-between ${
+                    importMode === 'replace'
+                      ? 'border-emerald-500 bg-emerald-50/40 text-emerald-950 shadow-sm ring-2 ring-emerald-500/20'
+                      : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="font-black text-xs">🔄 استبدال شامل</span>
+                    <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-bold">مستحسن</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                    مسح الفصول والمعلمين القدامى، وتثبيت الجدول الجديد بالكامل.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setImportMode('merge')}
+                  disabled={isImporting}
+                  className={`p-4 rounded-2xl border text-right transition-all flex flex-col justify-between ${
+                    importMode === 'merge'
+                      ? 'border-blue-500 bg-blue-50/40 text-blue-950 shadow-sm ring-2 ring-blue-500/20'
+                      : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="font-black text-xs">➕ دمج وتحديث</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                    تحديث الفصول الموجودة وإضافة المعلمين الجدد دون حذف السجلات السابقة.
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* Info Notice */}
+            <div className="p-3.5 bg-amber-50/80 border border-amber-200/80 rounded-2xl text-[11px] text-amber-900 leading-relaxed font-bold flex items-start gap-2.5">
+              <span className="text-base shrink-0">💡</span>
+              <span>
+                يقوم النظام بربط جدول الحصص الأسبوعي، توزيع المواد، وتعيين الصلاحيات لجميع المعلمين في نظام الخطط الأسبوعية تلقائياً.
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleExecuteImport}
+                disabled={isImporting}
+                className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs shadow-lg shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isImporting ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    <span>جاري حفظ وتحديث البيانات...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={16} />
+                    <span>بدء الاستيراد وتحديث النظام</span>
+                  </>
+                )}
+              </button>
+
+              {!isImporting && (
+                <button
+                  type="button"
+                  onClick={() => setImportPreviewData(null)}
+                  className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs transition-all"
+                >
+                  إلغاء
+                </button>
+              )}
             </div>
           </div>
         </div>
