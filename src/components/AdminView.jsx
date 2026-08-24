@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Save, Download, Upload,
   User, Users, ChevronRight, FileText, CheckCircle2,
   Calendar, X, Layout, KeyRound, Lock, Eye, EyeOff, ShieldCheck, Search, Edit2, RotateCcw,
-  Star, Bookmark, Smartphone, Monitor, Check, Sparkles, RefreshCw
+  Star, Bookmark, Smartphone, Monitor, Check, Sparkles, RefreshCw, UserCheck
 } from 'lucide-react';
 import HijriDatePicker from '@mk01/react-hijri-date-picker';
 
@@ -37,8 +37,10 @@ const AdminView = () => {
   const [tempSchedule, setTempSchedule] = useState({});
   const [weeklyPlans, setWeeklyPlans] = useState([]);
   const [isBulkExport, setIsBulkExport] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [managementModalTab, setManagementModalTab] = useState(null); // 'classes' | 'teachers' | null
+  const [assigningLeaderClass, setAssigningLeaderClass] = useState(null);
+  const [selectedLeaderTeacherId, setSelectedLeaderTeacherId] = useState('');
+  const [isSavingLeader, setIsSavingLeader] = useState(false);
 
   // Passwords Management & PIN State
   const [showPinModal, setShowPinModal] = useState(false);
@@ -411,6 +413,56 @@ const AdminView = () => {
     }));
   };
 
+  const openAssignLeaderModal = (cls) => {
+    setAssigningLeaderClass(cls);
+    const currentLeader = teachers.find(t => t.leader_of && t.leader_of.includes(cls.id));
+    setSelectedLeaderTeacherId(currentLeader ? currentLeader.id : '');
+  };
+
+  const saveClassLeader = async () => {
+    if (!assigningLeaderClass) return;
+    setIsSavingLeader(true);
+    const targetClassId = assigningLeaderClass.id;
+    
+    try {
+      const updatedTeachersList = [...teachers];
+      
+      // 1. Remove this class from any teachers currently assigned as leader of it
+      for (let i = 0; i < updatedTeachersList.length; i++) {
+        const t = updatedTeachersList[i];
+        if (t.leader_of && t.leader_of.includes(targetClassId) && t.id !== selectedLeaderTeacherId) {
+          const newLeaderships = t.leader_of.filter(id => id !== targetClassId);
+          await supabase.from('teachers').update({ leader_of: newLeaderships }).eq('id', t.id);
+          updatedTeachersList[i] = { ...t, leader_of: newLeaderships };
+        }
+      }
+      
+      // 2. Assign to selected teacher if selected
+      if (selectedLeaderTeacherId) {
+        const teacherIdx = updatedTeachersList.findIndex(t => t.id === selectedLeaderTeacherId);
+        if (teacherIdx !== -1) {
+          const t = updatedTeachersList[teacherIdx];
+          const currentLeaderships = Array.isArray(t.leader_of) ? t.leader_of : [];
+          const newLeaderships = currentLeaderships.includes(targetClassId)
+            ? currentLeaderships
+            : [...currentLeaderships, targetClassId];
+          
+          await supabase.from('teachers').update({ leader_of: newLeaderships }).eq('id', t.id);
+          updatedTeachersList[teacherIdx] = { ...t, leader_of: newLeaderships };
+        }
+      }
+      
+      setTeachers(updatedTeachersList);
+      setAssigningLeaderClass(null);
+      alert('تم حفظ إسناد ريادة الفصل بنجاح وسيظهر تلقائياً في الخطة والتصدير والطباعة');
+    } catch (err) {
+      console.error('Error saving class leader:', err);
+      alert('حدث خطأ أثناء حفظ رائد الفصل: ' + (err.message || err));
+    } finally {
+      setIsSavingLeader(false);
+    }
+  };
+
   const currentEditingClass = classes.find(c => c.id === editingScheduleClassId);
 
   const getTodayHijriFormatted = () => {
@@ -745,29 +797,55 @@ const AdminView = () => {
                   </div>
 
                   <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
-                    {classes.map(c => (
-                      <div key={c.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl group hover:bg-white hover:shadow-md border border-gray-100 hover:border-blue-100 transition-all">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-gray-800 text-base">{c.name}</span>
-                          <span className="text-[10px] text-gray-400">المعرف: {c.id.slice(-5)}</span>
+                    {classes.map(c => {
+                      const classLeader = teachers.find(t => t.leader_of && t.leader_of.includes(c.id));
+                      return (
+                        <div key={c.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-gray-50 rounded-2xl group hover:bg-white hover:shadow-md border border-gray-100 hover:border-blue-100 transition-all gap-3">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-gray-800 text-base">{c.name}</span>
+                              {classLeader && (
+                                <span className="text-[10px] bg-amber-50 text-amber-750 font-bold px-2.5 py-0.5 rounded-lg border border-amber-200 flex items-center gap-1 text-amber-800">
+                                  <UserCheck size={11} className="text-amber-600" />
+                                  <span>رائد الفصل: أ. {classLeader.name}</span>
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-gray-400">المعرف: {c.id.slice(-5)}</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button 
+                              type="button"
+                              onClick={() => openAssignLeaderModal(c)}
+                              className={`flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-xs border ${
+                                classLeader 
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' 
+                                  : 'bg-white text-gray-700 border-gray-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200'
+                              }`}
+                              title="إسناد ريادة الفصل لمعلم"
+                            >
+                              <UserCheck size={14} className={classLeader ? 'text-amber-600' : 'text-gray-400'} />
+                              <span>{classLeader ? 'تغيير رائد الفصل' : 'إسناد ريادة الفصل'}</span>
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => openScheduleEditor(c)}
+                              className="flex items-center gap-1 text-xs font-bold bg-blue-50 text-blue-600 px-3.5 py-2 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-xs"
+                            >
+                              <Calendar size={14} /> إعداد الجدول
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => deleteClass(c.id)} 
+                              className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-xl transition-all"
+                              title="حذف الفصل"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => openScheduleEditor(c)}
-                            className="flex items-center gap-1 text-xs font-bold bg-blue-50 text-blue-600 px-3.5 py-2 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-                          >
-                            <Calendar size={14} /> إعداد الجدول
-                          </button>
-                          <button 
-                            onClick={() => deleteClass(c.id)} 
-                            className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-xl transition-all"
-                            title="حذف الفصل"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {classes.length === 0 && (
                       <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                         <Users size={36} className="mx-auto text-gray-300 mb-2" />
@@ -1539,6 +1617,137 @@ const AdminView = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Assign Class Leader Modal */}
+      {assigningLeaderClass && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in" dir="rtl">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-amber-500 text-white rounded-2xl shadow-sm">
+                  <UserCheck size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">إسناد ريادة الفصل</h3>
+                  <p className="text-xs text-amber-800 font-medium">
+                    فصل: <span className="font-black text-amber-950">{assigningLeaderClass.name}</span>
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setAssigningLeaderClass(null)}
+                className="p-2 hover:bg-amber-100 rounded-full transition-all text-amber-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 overflow-y-auto">
+              <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                اختر المعلم المسؤول عن ريادة هذا الفصل. سيتم إدراج اسم رائد الفصل تلقائياً في أسفل الخطة الأسبوعية والطباعة والتصدير.
+              </p>
+
+              <div className="space-y-2">
+                {/* None option */}
+                <label 
+                  className={`flex items-center justify-between p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                    selectedLeaderTeacherId === '' 
+                      ? 'bg-amber-50/80 border-amber-500 text-amber-950 font-bold' 
+                      : 'bg-gray-50 border-transparent hover:bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="radio" 
+                      name="leaderTeacher" 
+                      value="" 
+                      checked={selectedLeaderTeacherId === ''}
+                      onChange={() => setSelectedLeaderTeacherId('')}
+                      className="w-4 h-4 text-amber-600 focus:ring-amber-500"
+                    />
+                    <span className="text-xs">بدون رائد فصل (إلغاء الإسناد)</span>
+                  </div>
+                </label>
+
+                {/* Teachers List */}
+                {teachers.map(t => {
+                  const isCurrentSelected = selectedLeaderTeacherId === t.id;
+                  const otherLeaderOf = Array.isArray(t.leader_of) 
+                    ? t.leader_of.filter(id => id !== assigningLeaderClass.id) 
+                    : [];
+                  const otherClassNames = otherLeaderOf
+                    .map(id => classes.find(c => c.id === id)?.name)
+                    .filter(Boolean);
+
+                  return (
+                    <label 
+                      key={t.id}
+                      className={`flex items-center justify-between p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                        isCurrentSelected 
+                          ? 'bg-amber-50/80 border-amber-500 text-amber-950 font-bold shadow-xs' 
+                          : 'bg-gray-50 border-transparent hover:bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="radio" 
+                          name="leaderTeacher" 
+                          value={t.id} 
+                          checked={isCurrentSelected}
+                          onChange={() => setSelectedLeaderTeacherId(t.id)}
+                          className="w-4 h-4 text-amber-600 focus:ring-amber-500"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold">أ. {t.name}</span>
+                          {otherClassNames && otherClassNames.length > 0 && (
+                            <span className="text-[10px] text-amber-700 font-semibold">
+                              (رائد أيضاً لـ: {otherClassNames.join('، ')})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {isCurrentSelected && (
+                        <span className="text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded-md font-bold">
+                          تم الاختيار
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
+
+                {teachers.length === 0 && (
+                  <p className="text-center py-6 text-xs text-gray-400 font-bold">
+                    لا يوجد معلمين مضافين في النظام بعد.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setAssigningLeaderClass(null)}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-200 transition-all"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={isSavingLeader}
+                onClick={saveClassLeader}
+                className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-amber-200 transition-all active:scale-95 disabled:opacity-50"
+              >
+                <Save size={16} />
+                <span>{isSavingLeader ? 'جاري الحفظ...' : 'حفظ ريادة الفصل'}</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
