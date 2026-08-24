@@ -616,6 +616,13 @@ const AdminView = () => {
     return dateStr;
   };
 
+  const formatSemester = (sem) => {
+    if (!sem) return '';
+    const trimmed = sem.trim();
+    if (trimmed.startsWith('الفصل')) return trimmed;
+    return `الفصل ${trimmed}`;
+  };
+
   const getFullClassData = (classId = exportConfig.classId) => {
     if (!classId) return null;
     const cls = classes.find(c => c.id === classId);
@@ -776,12 +783,12 @@ const AdminView = () => {
               value={exportConfig.semester}
               onChange={(e) => setExportConfig(prev => ({...prev, semester: e.target.value}))}
               className="w-full p-3 bg-white/10 border-none rounded-xl font-bold focus:ring-2 focus:ring-white outline-none text-center"
-              placeholder="مثال: الثاني"
+              placeholder="مثال: الفصل الأول"
             />
             <datalist id="semesters-list">
-              <option value="الأول" />
-              <option value="الثاني" />
-              <option value="الثالث" />
+              <option value="الفصل الأول" />
+              <option value="الفصل الثاني" />
+              <option value="الفصل الثالث" />
             </datalist>
           </div>
           <div className="space-y-1">
@@ -1661,7 +1668,7 @@ const AdminView = () => {
                 </div>
                 <div className="text-center">
                   <p className="font-bold text-[16px] text-[#2b4c7e] border-b-2 border-[#2b4c7e] mb-1 px-4">
-                    الخطة التعليمية الأسبوعية - {exportConfig.semester} - {exportConfig.year}
+                    الخطة التعليمية الأسبوعية - {formatSemester(exportConfig.semester)} - {exportConfig.year}
                   </p>
                   <p className="text-[11px] font-bold">اسم الطالب: ................................................................</p>
                 </div>
