@@ -49,6 +49,7 @@ const AdminView = () => {
   const [schoolPhone, setSchoolPhone] = useState(() => localStorage.getItem('admin_school_phone') || '');
   const [schoolName, setSchoolName] = useState(() => localStorage.getItem('admin_school_name') || 'مدرسة سمرة بن عمرو الابتدائية');
   const [educationDept, setEducationDept] = useState(() => localStorage.getItem('admin_education_dept') || 'ادارة التعليم بمحافظة حفر الباطن');
+  const [schoolGender, setSchoolGender] = useState(() => localStorage.getItem('admin_school_gender') || 'boys'); // 'boys' | 'girls'
   const [isSavingSchoolInfo, setIsSavingSchoolInfo] = useState(false);
 
   // Passwords Management & PIN State
@@ -138,6 +139,11 @@ const AdminView = () => {
         if (settingsMap.education_dept !== undefined) {
           setEducationDept(settingsMap.education_dept || '');
           localStorage.setItem('admin_education_dept', settingsMap.education_dept || '');
+        }
+
+        if (settingsMap.school_gender !== undefined) {
+          setSchoolGender(settingsMap.school_gender || 'boys');
+          localStorage.setItem('admin_school_gender', settingsMap.school_gender || 'boys');
         }
       }
 
@@ -524,7 +530,8 @@ const AdminView = () => {
         { key: 'principal_name', value: principalName.trim() },
         { key: 'school_phone', value: schoolPhone.trim() },
         { key: 'school_name', value: schoolName.trim() },
-        { key: 'education_dept', value: educationDept.trim() }
+        { key: 'education_dept', value: educationDept.trim() },
+        { key: 'school_gender', value: schoolGender }
       ]);
 
       if (error) throw error;
@@ -533,6 +540,7 @@ const AdminView = () => {
       localStorage.setItem('admin_school_phone', schoolPhone.trim());
       localStorage.setItem('admin_school_name', schoolName.trim());
       localStorage.setItem('admin_education_dept', educationDept.trim());
+      localStorage.setItem('admin_school_gender', schoolGender);
 
       setShowSchoolInfoModal(false);
       alert('تم حفظ بيانات المدير والمدرسة بنجاح');
@@ -1670,7 +1678,7 @@ const AdminView = () => {
                   <p className="font-bold text-[16px] text-[#2b4c7e] border-b-2 border-[#2b4c7e] mb-1 px-4">
                     الخطة التعليمية الأسبوعية - {formatSemester(exportConfig.semester)} - {exportConfig.year}
                   </p>
-                  <p className="text-[11px] font-bold">اسم الطالب: ................................................................</p>
+                  <p className="text-[11px] font-bold">{schoolGender === 'girls' ? 'اسم الطالبة:' : 'اسم الطالب:'} ................................................................</p>
                 </div>
                 <div className="text-left border-2 border-[#2b4c7e] p-1.5 rounded-2xl bg-slate-50 min-w-[125px] leading-tight">
                   <p className="font-bold text-[10px]">الأسبوع {exportConfig.weekNumber} [{data.name}]</p>
@@ -1727,8 +1735,8 @@ const AdminView = () => {
               <div className="mt-2 text-center text-[10px] font-bold text-slate-700 space-y-2">
                 <p>جوال المدرسة: {schoolPhone || '.........................'}</p>
                 <div className="flex justify-between pt-2 px-4">
-                  <p>رائد الفصل: {data.leaderName || '.........................'}</p>
-                  <p>مدير المدرسة: {principalName || '.........................'}</p>
+                  <p>{schoolGender === 'girls' ? 'رائدة الفصل:' : 'رائد الفصل:'} {data.leaderName || '.........................'}</p>
+                  <p>{schoolGender === 'girls' ? 'مديرة المدرسة:' : 'مدير المدرسة:'} {principalName || '.........................'}</p>
                 </div>
               </div>
             </div>
@@ -1946,16 +1954,47 @@ const AdminView = () => {
             </div>
 
             <form onSubmit={handleSaveSchoolInfo} className="p-6 space-y-4">
-              {/* اسم المدير */}
+              {/* نوع المدرسة: بنين / بنات */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 block mr-1">
-                  اسم مدير المدرسة:
+                  نوع المدرسة (لتأنيث المسميات بالطباعة والتصدير):
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSchoolGender('boys')}
+                    className={`py-3 px-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 border transition-all ${
+                      schoolGender === 'boys'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>👨‍🎓 بنين (مدير / رائد / طالب)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSchoolGender('girls')}
+                    className={`py-3 px-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 border transition-all ${
+                      schoolGender === 'girls'
+                        ? 'bg-pink-600 text-white border-pink-600 shadow-md shadow-pink-100'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>👩‍🎓 بنات (مديرة / رائدة / طالبة)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* اسم المدير / المديرة */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block mr-1">
+                  {schoolGender === 'girls' ? 'اسم مديرة المدرسة:' : 'اسم مدير المدرسة:'}
                 </label>
                 <input
                   type="text"
                   value={principalName}
                   onChange={(e) => setPrincipalName(e.target.value)}
-                  placeholder="مثال: أحمد محمد القحطاني"
+                  placeholder={schoolGender === 'girls' ? 'مثال: نورة محمد القحطاني' : 'مثال: أحمد محمد القحطاني'}
                   className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 />
               </div>
