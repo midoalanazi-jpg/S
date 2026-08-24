@@ -32,6 +32,7 @@ function TeacherView() {
   const [selectedCells, setSelectedCells] = useState([]); // Array of { day, period, slotInfo }
   const [saveStatus, setSaveStatus] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [mobileSelectedDay, setMobileSelectedDay] = useState('all');
 
   // Load metadata from Supabase
   useEffect(() => {
@@ -416,38 +417,182 @@ function TeacherView() {
 
   // Modal / Popup
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-8">
       {/* Header */}
-      <div className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-4">
-          <div className="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg">
-            <Calendar size={24} />
+      <div className="max-w-7xl mx-auto mb-4 md:mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4 bg-white md:bg-transparent p-3.5 md:p-0 rounded-2xl border md:border-0 border-slate-100 shadow-xs md:shadow-none">
+        <div className="flex items-center gap-3">
+          <div className="bg-indigo-600 p-2.5 md:p-3 rounded-xl md:rounded-2xl text-white shadow-md">
+            <Calendar size={20} className="md:w-6 md:h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{currentTeacher?.name}</h1>
-            <p className="text-sm text-slate-500">الجدول الدراسي الأسبوعي الموحد</p>
+            <h1 className="text-base md:text-xl font-bold text-slate-900 leading-tight">{currentTeacher?.name}</h1>
+            <p className="text-xs text-slate-400">الجدول الدراسي الأسبوعي الموحد</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full">{saveStatus}</span>
+        <div className="flex items-center justify-between w-full md:w-auto gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+          <span className="text-[11px] font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">{saveStatus}</span>
           <button 
             onClick={handleLogoutTeacher}
-            className="text-sm font-bold text-slate-400 hover:text-slate-600 transition-all flex items-center gap-1"
+            className="text-xs md:text-sm font-bold text-slate-500 hover:text-slate-700 transition-all flex items-center gap-1 bg-slate-100 md:bg-transparent px-3 py-1.5 md:p-0 rounded-xl"
           >
             ← تغيير المعلم
           </button>
         </div>
       </div>
 
-      {/* Weekly Grid */}
-      <div className="max-w-7xl mx-auto bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+      {/* Mobile Day Filter Tabs */}
+      <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setMobileSelectedDay('all')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+            mobileSelectedDay === 'all'
+              ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          عرض الأسبوع كامل
+        </button>
+        {DAYS.map(day => {
+          const teachingCount = PERIODS.reduce((count, p) => count + (getTeacherSlotInfo(day.id, p) ? 1 : 0), 0);
+          return (
+            <button
+              key={day.id}
+              type="button"
+              onClick={() => setMobileSelectedDay(day.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                mobileSelectedDay === day.id
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <span>{day.name}</span>
+              {teachingCount > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-md leading-none font-black ${
+                  mobileSelectedDay === day.id ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {teachingCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Mobile Vertical Schedule List */}
+      <div className="md:hidden space-y-3 mb-24">
+        {DAYS.filter(d => mobileSelectedDay === 'all' || mobileSelectedDay === d.id).map(day => {
+          const teachingCount = PERIODS.reduce((count, p) => count + (getTeacherSlotInfo(day.id, p) ? 1 : 0), 0);
+          return (
+            <div key={day.id} className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm space-y-2">
+              {/* Day Header */}
+              <div className="flex items-center justify-between px-1 pb-1.5 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+                  <span className="font-bold text-slate-900 text-sm">{day.name}</span>
+                </div>
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                  {teachingCount} حصص دراسية
+                </span>
+              </div>
+
+              {/* Periods List */}
+              <div className="space-y-1.5">
+                {PERIODS.map(period => {
+                  const slotInfo = getTeacherSlotInfo(day.id, period);
+                  const cellData = slotInfo ? planData[slotInfo.classId]?.[day.id]?.[period] : null;
+                  const isSelected = selectedCells.some(c => c.day === day.id && c.period === period);
+
+                  if (!slotInfo) {
+                    return (
+                      <div 
+                        key={period}
+                        className="flex items-center justify-between px-3 py-1.5 bg-slate-50/50 rounded-xl border border-dashed border-slate-200/80 text-slate-400 text-xs"
+                      >
+                        <span className="font-semibold text-[11px] text-slate-400">الحصة {period}</span>
+                        <span className="text-[10px] text-slate-300 font-medium">— حصة شاغرة (فراغ)</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={period}
+                      onClick={() => toggleCellSelection(day.id, period, slotInfo)}
+                      className={`p-2.5 rounded-xl border transition-all cursor-pointer relative ${
+                        isSelected 
+                          ? 'bg-indigo-50/90 border-indigo-500 ring-1 ring-indigo-500 shadow-sm' 
+                          : 'bg-white hover:bg-slate-50/80 border-slate-200/90 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                            isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            الحصة {period}
+                          </span>
+                          <span className="text-xs font-black text-indigo-700">
+                            {slotInfo.subject}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                            {slotInfo.className}
+                          </span>
+                        </div>
+
+                        <div className="shrink-0">
+                          {isSelected ? (
+                            <div className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-xs">
+                              <CheckCircle2 size={13} />
+                            </div>
+                          ) : (
+                            <div className="w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center">
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Lesson Plan details if entered */}
+                      {cellData?.title ? (
+                        <div className="mt-2 bg-indigo-50/70 p-2 rounded-lg border border-indigo-100 text-right space-y-0.5">
+                          <p className="font-bold text-indigo-950 text-xs line-clamp-1">
+                            📖 {cellData.title}
+                          </p>
+                          {cellData.objective && (
+                            <p className="text-[10px] text-indigo-700 line-clamp-1 font-medium">
+                              🎯 {cellData.objective}
+                            </p>
+                          )}
+                          {cellData.homework && (
+                            <p className="text-[10px] text-indigo-500 line-clamp-1 font-medium">
+                              🏠 واجب: {cellData.homework}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-indigo-500/80">
+                          <Plus size={12} />
+                          <span>اضغط لتحديد الحصة والتحضير</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop Weekly Grid */}
+      <div className="hidden md:block max-w-7xl mx-auto bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-slate-50/50">
-                <th className="p-6 border-b border-slate-100 text-slate-400 font-bold text-xs w-32 text-right">اليوم \ الحصة</th>
+                <th className="p-5 border-b border-slate-100 text-slate-400 font-bold text-xs w-32 text-right">اليوم \ الحصة</th>
                 {PERIODS.map(period => (
-                  <th key={period} className="p-6 border-b border-slate-100 text-slate-900 font-bold text-center">
+                  <th key={period} className="p-5 border-b border-slate-100 text-slate-900 font-bold text-center text-sm">
                     الحصة {period}
                   </th>
                 ))}
@@ -456,7 +601,7 @@ function TeacherView() {
             <tbody>
               {DAYS.map(day => (
                 <tr key={day.id} className="hover:bg-slate-50/30 transition-all group">
-                  <td className="p-4 border-b border-l border-slate-50 text-right font-bold text-indigo-600 bg-slate-50/20">
+                  <td className="p-4 border-b border-l border-slate-50 text-right font-bold text-indigo-600 bg-slate-50/20 text-sm">
                     {day.name}
                   </td>
                   {PERIODS.map(period => {
@@ -468,7 +613,7 @@ function TeacherView() {
                       <td 
                         key={period} 
                         onClick={() => slotInfo && toggleCellSelection(day.id, period, slotInfo)}
-                        className={`p-2 border-b border-slate-50 transition-all relative h-28 ${
+                        className={`p-2 border-b border-slate-50 transition-all relative h-26 ${
                           slotInfo 
                           ? `cursor-pointer ${isSelected ? 'bg-indigo-100 ring-2 ring-inset ring-indigo-500 z-10' : 'hover:bg-indigo-50/50'}` 
                           : 'bg-gray-50/30 opacity-20 cursor-not-allowed'
@@ -488,14 +633,14 @@ function TeacherView() {
                           )}
                           
                           {cellData?.title ? (
-                            <div className="flex-1 bg-indigo-50/50 p-2 rounded-xl border border-indigo-100 text-right space-y-0.5">
+                            <div className="flex-1 bg-indigo-50/50 p-1.5 rounded-xl border border-indigo-100 text-right space-y-0.5">
                               <p className="font-bold text-indigo-900 text-[10px] line-clamp-1">{cellData.title}</p>
                               <p className="text-[8px] text-indigo-400 line-clamp-1">{cellData.objective}</p>
                             </div>
                           ) : slotInfo ? (
                             <div className="flex-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                               <div className="p-2 bg-slate-100 rounded-full text-slate-400">
-                                 <Plus size={16} />
+                               <div className="p-1.5 bg-slate-100 rounded-full text-slate-400">
+                                 <Plus size={14} />
                                </div>
                             </div>
                           ) : null}
@@ -512,44 +657,46 @@ function TeacherView() {
 
       {/* Floating Action Button for Selection */}
       {selectedCells.length > 0 && (
-        <div className="fixed bottom-8 right-8 left-8 md:left-auto md:w-80 z-40 animate-in slide-in-from-bottom-10">
+        <div className="fixed bottom-4 right-4 left-4 md:bottom-8 md:right-8 md:left-auto md:w-80 z-40 animate-in slide-in-from-bottom-5">
           <button 
+            type="button"
             onClick={() => setActiveCell({
               isBulk: true,
               day: selectedCells[0].day,
               period: selectedCells[0].period,
               slotInfo: selectedCells[0].slotInfo
             })}
-            className="w-full bg-indigo-600 text-white p-5 rounded-3xl shadow-2xl flex items-center justify-between group hover:bg-indigo-700 transition-all"
+            className="w-full bg-indigo-600 text-white p-3.5 md:p-5 rounded-2xl md:rounded-3xl shadow-2xl flex items-center justify-between group hover:bg-indigo-700 transition-all"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <div className="bg-white/20 p-2 rounded-xl text-white">
-                <Send size={20} />
+                <Send size={18} />
               </div>
               <div className="text-right">
-                <p className="font-bold">تحضير الدروس المختارة</p>
-                <p className="text-xs opacity-70">تم تحديد {selectedCells.length} حصص</p>
+                <p className="font-bold text-sm md:text-base">تحضير الدروس المختارة</p>
+                <p className="text-[11px] md:text-xs opacity-80">تم تحديد {selectedCells.length} حصص</p>
               </div>
             </div>
-            <ChevronRight className="group-hover:translate-x-[-4px] transition-all" />
+            <ChevronRight className="group-hover:translate-x-[-4px] transition-all" size={20} />
           </button>
         </div>
       )}
 
       {/* Modal / Popup */}
       {activeCell && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg max-h-[92vh] flex flex-col rounded-3xl md:rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-4 md:p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
               <div>
-                <h3 className="text-xl font-bold text-slate-900">
+                <h3 className="text-lg md:text-xl font-bold text-slate-900">
                   {selectedCells.length > 1 ? 'تحضير جماعي للدروس' : `تحضير الحصة ${activeCell.period}`}
                 </h3>
-                <p className="text-sm text-slate-500 font-medium">
+                <p className="text-xs md:text-sm text-slate-500 font-medium">
                   {selectedCells.length > 1 ? `سيتم تطبيق التحضير على ${selectedCells.length} حصص` : activeCell.dayName}
                 </p>
               </div>
               <button 
+                type="button"
                 onClick={() => setActiveCell(null)}
                 className="p-2 hover:bg-slate-200 rounded-full transition-all text-slate-400"
               >
@@ -557,14 +704,14 @@ function TeacherView() {
               </button>
             </div>
             
-            <div className="p-8 space-y-6">
+            <div className="p-4 md:p-8 space-y-4 md:space-y-6 overflow-y-auto">
               {/* موضوع الدرس */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
                     <BookOpen size={14} /> موضوع الدرس
                   </label>
-                  <span className={`text-[11px] font-bold ${
+                  <span className={`text-[10px] md:text-[11px] font-bold ${
                     LIMITS.title - formData.title.length < 0 ? 'text-red-500 font-black' : 'text-slate-400'
                   }`}>
                     {LIMITS.title - formData.title.length < 0 
@@ -577,7 +724,7 @@ function TeacherView() {
                   autoFocus
                   value={formData.title}
                   onChange={(e) => handleFieldChange('title', e.target.value)}
-                  className={`w-full p-4 bg-slate-50 rounded-2xl border-2 transition-all font-bold text-slate-700 outline-none ${
+                  className={`w-full p-3.5 bg-slate-50 rounded-2xl border-2 transition-all font-bold text-slate-700 outline-none text-sm ${
                     LIMITS.title - formData.title.length < 0 
                       ? 'border-red-300 focus:border-red-500 focus:bg-white' 
                       : 'border-transparent focus:bg-white focus:border-indigo-300'
@@ -587,12 +734,12 @@ function TeacherView() {
               </div>
 
               {/* الأهداف */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
                     <Target size={14} /> الأهداف
                   </label>
-                  <span className={`text-[11px] font-bold ${
+                  <span className={`text-[10px] md:text-[11px] font-bold ${
                     LIMITS.objective - formData.objective.length < 0 ? 'text-red-500 font-black' : 'text-slate-400'
                   }`}>
                     {LIMITS.objective - formData.objective.length < 0 
@@ -603,7 +750,7 @@ function TeacherView() {
                 <textarea 
                   value={formData.objective}
                   onChange={(e) => handleFieldChange('objective', e.target.value)}
-                  className={`w-full p-4 bg-slate-50 rounded-2xl border-2 transition-all text-sm min-h-[100px] outline-none ${
+                  className={`w-full p-3.5 bg-slate-50 rounded-2xl border-2 transition-all text-xs md:text-sm min-h-[85px] outline-none ${
                     LIMITS.objective - formData.objective.length < 0 
                       ? 'border-red-300 focus:border-red-500 focus:bg-white' 
                       : 'border-transparent focus:bg-white focus:border-indigo-300'
@@ -613,12 +760,12 @@ function TeacherView() {
               </div>
 
               {/* الواجب */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
                     <Home size={14} /> الواجب
                   </label>
-                  <span className={`text-[11px] font-bold ${
+                  <span className={`text-[10px] md:text-[11px] font-bold ${
                     LIMITS.homework - formData.homework.length < 0 ? 'text-red-500 font-black' : 'text-slate-400'
                   }`}>
                     {LIMITS.homework - formData.homework.length < 0 
@@ -630,7 +777,7 @@ function TeacherView() {
                   type="text"
                   value={formData.homework}
                   onChange={(e) => handleFieldChange('homework', e.target.value)}
-                  className={`w-full p-4 bg-slate-50 rounded-2xl border-2 transition-all text-sm outline-none ${
+                  className={`w-full p-3.5 bg-slate-50 rounded-2xl border-2 transition-all text-xs md:text-sm outline-none ${
                     LIMITS.homework - formData.homework.length < 0 
                       ? 'border-red-300 focus:border-red-500 focus:bg-white' 
                       : 'border-transparent focus:bg-white focus:border-indigo-300'
@@ -640,12 +787,13 @@ function TeacherView() {
               </div>
 
               <button 
+                type="button"
                 onClick={() => {
                   saveCellData(selectedCells, formData);
                 }}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 mt-4"
+                className="w-full bg-indigo-600 text-white py-3.5 md:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 text-sm md:text-base mt-2"
               >
-                <Save size={20} /> حفظ للكل ({selectedCells.length} حصص)
+                <Save size={18} /> حفظ للكل ({selectedCells.length} حصص)
               </button>
             </div>
           </div>
@@ -673,14 +821,6 @@ function TeacherView() {
           </div>
         </div>
       )}
-
-      {/* Instructions for small screens */}
-      <div className="md:hidden mt-6 p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-center gap-3">
-        <AlertCircle className="text-amber-500 shrink-0" size={20} />
-        <p className="text-[10px] text-amber-700 font-bold leading-relaxed">
-          اقلب الجوال جنب علشان تشوف زين 😊
-        </p>
-      </div>
     </div>
   );
 }
