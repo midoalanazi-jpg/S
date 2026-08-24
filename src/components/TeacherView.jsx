@@ -377,17 +377,14 @@ function TeacherView() {
             <div className="flex items-center gap-3">
               <img 
                 src="/logo.png" 
-                alt="شعار منصة خطتي" 
+                alt="شعار نصابي" 
                 className="w-10 h-10 object-contain rounded-xl shadow-xs" 
               />
               <div>
-                <h2 className="text-sm font-bold text-slate-800 leading-tight">منصة خطتي</h2>
+                <h2 className="text-sm font-bold text-slate-800 leading-tight">نصابي</h2>
                 <p className="text-[11px] text-slate-400 font-medium">الخطط الأسبوعية وجداول الحصص</p>
               </div>
             </div>
-            <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100/60">
-              نظام نصابي
-            </span>
           </div>
         </header>
 

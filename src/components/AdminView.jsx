@@ -712,7 +712,7 @@ const AdminView = () => {
           <div className="flex items-center gap-3">
             <img 
               src="/logo.png" 
-              alt="شعار منصة خطتي" 
+              alt="شعار نصابي" 
               className="w-12 h-12 object-contain rounded-2xl shadow-xs shrink-0 bg-white p-0.5 border border-slate-100" 
             />
             <div>
