@@ -428,7 +428,7 @@ function TeacherView() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 font-medium mt-0.5">
-                    إدارة الفصول والمعلمين، إعداد الجداول، وتصدير الخطط
+                    الإدارة والتصدير
                   </p>
                 </div>
               </div>
