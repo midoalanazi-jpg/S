@@ -37,10 +37,10 @@ const AdminView = () => {
   const [tempSchedule, setTempSchedule] = useState({});
   const [weeklyPlans, setWeeklyPlans] = useState([]);
   const [isBulkExport, setIsBulkExport] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [managementModalTab, setManagementModalTab] = useState(null); // 'classes' | 'teachers' | null
   const [assigningLeaderClass, setAssigningLeaderClass] = useState(null);
   const [selectedLeaderTeacherId, setSelectedLeaderTeacherId] = useState('');
-  const [isSavingLeader, setIsSavingLeader] = useState(false);
 
   // Passwords Management & PIN State
   const [showPinModal, setShowPinModal] = useState(false);
@@ -389,6 +389,59 @@ const AdminView = () => {
     setTempSchedule(cls.schedule || {});
   };
 
+  const openAssignLeaderModal = (cls) => {
+    const currentLeader = teachers.find(t => t.leader_of && t.leader_of.includes(cls.id));
+    setSelectedLeaderTeacherId(currentLeader ? currentLeader.id : '');
+    setAssigningLeaderClass(cls);
+  };
+
+  const handleSaveClassLeader = async (classId, newLeaderTeacherId) => {
+    try {
+      setIsLoading(true);
+      const updatedTeachersList = [];
+
+      for (const t of teachers) {
+        const currentLeaderOf = Array.isArray(t.leader_of) ? [...t.leader_of] : [];
+        const hasClass = currentLeaderOf.includes(classId);
+
+        if (t.id === newLeaderTeacherId) {
+          if (!hasClass) {
+            const newArr = [...currentLeaderOf, classId];
+            const { error } = await supabase
+              .from('teachers')
+              .update({ leader_of: newArr })
+              .eq('id', t.id);
+
+            if (error) throw error;
+            updatedTeachersList.push({ ...t, leader_of: newArr });
+          } else {
+            updatedTeachersList.push(t);
+          }
+        } else if (hasClass) {
+          const newArr = currentLeaderOf.filter(id => id !== classId);
+          const { error } = await supabase
+            .from('teachers')
+            .update({ leader_of: newArr })
+            .eq('id', t.id);
+
+          if (error) throw error;
+          updatedTeachersList.push({ ...t, leader_of: newArr });
+        } else {
+          updatedTeachersList.push(t);
+        }
+      }
+
+      setTeachers(updatedTeachersList);
+      setAssigningLeaderClass(null);
+      alert('تم إسناد رائد الفصل بنجاح وسيظهر في التصدير');
+    } catch (err) {
+      console.error('Error assigning class leader:', err);
+      alert(`حدث خطأ أثناء حفظ رائد الفصل: ${err.message || err}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const saveSchedule = async () => {
     const { error } = await supabase
       .from('classes')
@@ -411,56 +464,6 @@ const AdminView = () => {
       ...prev,
       [`${dayId}_${period}`]: subject
     }));
-  };
-
-  const openAssignLeaderModal = (cls) => {
-    setAssigningLeaderClass(cls);
-    const currentLeader = teachers.find(t => t.leader_of && t.leader_of.includes(cls.id));
-    setSelectedLeaderTeacherId(currentLeader ? currentLeader.id : '');
-  };
-
-  const saveClassLeader = async () => {
-    if (!assigningLeaderClass) return;
-    setIsSavingLeader(true);
-    const targetClassId = assigningLeaderClass.id;
-    
-    try {
-      const updatedTeachersList = [...teachers];
-      
-      // 1. Remove this class from any teachers currently assigned as leader of it
-      for (let i = 0; i < updatedTeachersList.length; i++) {
-        const t = updatedTeachersList[i];
-        if (t.leader_of && t.leader_of.includes(targetClassId) && t.id !== selectedLeaderTeacherId) {
-          const newLeaderships = t.leader_of.filter(id => id !== targetClassId);
-          await supabase.from('teachers').update({ leader_of: newLeaderships }).eq('id', t.id);
-          updatedTeachersList[i] = { ...t, leader_of: newLeaderships };
-        }
-      }
-      
-      // 2. Assign to selected teacher if selected
-      if (selectedLeaderTeacherId) {
-        const teacherIdx = updatedTeachersList.findIndex(t => t.id === selectedLeaderTeacherId);
-        if (teacherIdx !== -1) {
-          const t = updatedTeachersList[teacherIdx];
-          const currentLeaderships = Array.isArray(t.leader_of) ? t.leader_of : [];
-          const newLeaderships = currentLeaderships.includes(targetClassId)
-            ? currentLeaderships
-            : [...currentLeaderships, targetClassId];
-          
-          await supabase.from('teachers').update({ leader_of: newLeaderships }).eq('id', t.id);
-          updatedTeachersList[teacherIdx] = { ...t, leader_of: newLeaderships };
-        }
-      }
-      
-      setTeachers(updatedTeachersList);
-      setAssigningLeaderClass(null);
-      alert('تم حفظ إسناد ريادة الفصل بنجاح وسيظهر تلقائياً في الخطة والتصدير والطباعة');
-    } catch (err) {
-      console.error('Error saving class leader:', err);
-      alert('حدث خطأ أثناء حفظ رائد الفصل: ' + (err.message || err));
-    } finally {
-      setIsSavingLeader(false);
-    }
   };
 
   const currentEditingClass = classes.find(c => c.id === editingScheduleClassId);
@@ -798,34 +801,32 @@ const AdminView = () => {
 
                   <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
                     {classes.map(c => {
-                      const classLeader = teachers.find(t => t.leader_of && t.leader_of.includes(c.id));
+                      const leader = teachers.find(t => t.leader_of && t.leader_of.includes(c.id));
                       return (
-                        <div key={c.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-gray-50 rounded-2xl group hover:bg-white hover:shadow-md border border-gray-100 hover:border-blue-100 transition-all gap-3">
-                          <div className="flex flex-col gap-1">
+                        <div key={c.id} className="flex flex-col md:flex-row justify-between items-start md:items-center p-4 bg-gray-50 rounded-2xl group hover:bg-white hover:shadow-md border border-gray-100 hover:border-blue-100 transition-all gap-3">
+                          <div className="flex flex-col">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-gray-800 text-base">{c.name}</span>
-                              {classLeader && (
-                                <span className="text-[10px] bg-amber-50 text-amber-750 font-bold px-2.5 py-0.5 rounded-lg border border-amber-200 flex items-center gap-1 text-amber-800">
-                                  <UserCheck size={11} className="text-amber-600" />
-                                  <span>رائد الفصل: أ. {classLeader.name}</span>
+                              {leader ? (
+                                <span className="text-[11px] bg-amber-50 text-amber-800 font-bold px-2.5 py-0.5 rounded-lg border border-amber-200 flex items-center gap-1">
+                                  <UserCheck size={13} className="text-amber-600" /> رائد الفصل: {leader.name}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg font-medium">
+                                  بدون رائد فصل
                                 </span>
                               )}
                             </div>
                             <span className="text-[10px] text-gray-400">المعرف: {c.id.slice(-5)}</span>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap self-end md:self-auto">
                             <button 
                               type="button"
                               onClick={() => openAssignLeaderModal(c)}
-                              className={`flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-xs border ${
-                                classLeader 
-                                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' 
-                                  : 'bg-white text-gray-700 border-gray-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200'
-                              }`}
-                              title="إسناد ريادة الفصل لمعلم"
+                              className="flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-800 hover:bg-amber-600 hover:text-white px-3.5 py-2 rounded-xl transition-all shadow-xs border border-amber-200 hover:border-amber-600"
+                              title="إسناد ريادة الفصل لأحد المعلمين"
                             >
-                              <UserCheck size={14} className={classLeader ? 'text-amber-600' : 'text-gray-400'} />
-                              <span>{classLeader ? 'تغيير رائد الفصل' : 'إسناد ريادة الفصل'}</span>
+                              <UserCheck size={14} /> إسناد ريادة الفصل
                             </button>
                             <button 
                               type="button"
@@ -1459,6 +1460,119 @@ const AdminView = () => {
         </div>
       )}
 
+      {/* Assign Class Leader Modal Overlay */}
+      {assigningLeaderClass && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in">
+          <div className="bg-white w-full max-w-lg rounded-3xl sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95">
+            <div className="p-6 bg-amber-50 border-b border-amber-100 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-amber-500 text-white rounded-2xl shadow-sm">
+                  <UserCheck size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-amber-950">إسناد ريادة الفصل</h3>
+                  <p className="text-xs text-amber-700 font-semibold">{assigningLeaderClass.name}</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setAssigningLeaderClass(null)}
+                className="p-2 hover:bg-amber-200/60 rounded-full transition-all text-amber-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="bg-blue-50/80 border border-blue-100 p-3.5 rounded-2xl text-xs text-blue-900 leading-relaxed font-medium">
+                💡 المعلم الذي تختاره سيتم اعتماده كـ <b>رائد لهذا الفصل</b>، وسيظهر اسمه رسمياً في تصدير وطباعة الخطة الأسبوعية.
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 block">اختر رائد الفصل من قائمة المعلمين:</label>
+                <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
+                  {/* Option to clear leader */}
+                  <div 
+                    onClick={() => setSelectedLeaderTeacherId('')}
+                    className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between ${
+                      selectedLeaderTeacherId === '' 
+                        ? 'border-indigo-600 bg-indigo-50/50 shadow-xs' 
+                        : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedLeaderTeacherId === '' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
+                        {selectedLeaderTeacherId === '' && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                      </div>
+                      <span className="text-xs font-bold text-slate-600">بدون رائد فصل (إلغاء الإسناد)</span>
+                    </div>
+                  </div>
+
+                  {/* Teachers list */}
+                  {teachers.map(teacher => {
+                    const isSelected = selectedLeaderTeacherId === teacher.id;
+                    const isLeaderOfOther = teacher.leader_of?.length > 0 && !teacher.leader_of.includes(assigningLeaderClass.id);
+                    const otherClassNames = isLeaderOfOther 
+                      ? teacher.leader_of.map(cid => classes.find(c => c.id === cid)?.name).filter(Boolean).join('، ')
+                      : '';
+
+                    return (
+                      <div 
+                        key={teacher.id}
+                        onClick={() => setSelectedLeaderTeacherId(teacher.id)}
+                        className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between ${
+                          isSelected 
+                            ? 'border-indigo-600 bg-indigo-50/60 shadow-xs' 
+                            : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
+                            {isSelected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 block">{teacher.name}</span>
+                            {isLeaderOfOther && (
+                              <span className="text-[10px] text-amber-600 font-semibold">
+                                رائد فصل حالياً لـ: {otherClassNames}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <span className="text-[10px] bg-indigo-600 text-white font-bold px-2 py-0.5 rounded-md">
+                            تم الاختيار
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setAssigningLeaderClass(null)}
+                className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-200 transition-all"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={() => handleSaveClassLeader(assigningLeaderClass.id, selectedLeaderTeacherId)}
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md shadow-indigo-100 transition-all active:scale-95 flex items-center gap-1.5"
+              >
+                <Save size={15} />
+                <span>حفظ التعيين</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Schedule Editor Overlay */}
       {editingScheduleClassId && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden">
@@ -1617,137 +1731,6 @@ const AdminView = () => {
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Assign Class Leader Modal */}
-      {assigningLeaderClass && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in" dir="rtl">
-          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            {/* Modal Header */}
-            <div className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-amber-500 text-white rounded-2xl shadow-sm">
-                  <UserCheck size={22} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">إسناد ريادة الفصل</h3>
-                  <p className="text-xs text-amber-800 font-medium">
-                    فصل: <span className="font-black text-amber-950">{assigningLeaderClass.name}</span>
-                  </p>
-                </div>
-              </div>
-              <button 
-                type="button"
-                onClick={() => setAssigningLeaderClass(null)}
-                className="p-2 hover:bg-amber-100 rounded-full transition-all text-amber-700"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 space-y-4 overflow-y-auto">
-              <p className="text-xs text-gray-500 font-medium leading-relaxed">
-                اختر المعلم المسؤول عن ريادة هذا الفصل. سيتم إدراج اسم رائد الفصل تلقائياً في أسفل الخطة الأسبوعية والطباعة والتصدير.
-              </p>
-
-              <div className="space-y-2">
-                {/* None option */}
-                <label 
-                  className={`flex items-center justify-between p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                    selectedLeaderTeacherId === '' 
-                      ? 'bg-amber-50/80 border-amber-500 text-amber-950 font-bold' 
-                      : 'bg-gray-50 border-transparent hover:bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <input 
-                      type="radio" 
-                      name="leaderTeacher" 
-                      value="" 
-                      checked={selectedLeaderTeacherId === ''}
-                      onChange={() => setSelectedLeaderTeacherId('')}
-                      className="w-4 h-4 text-amber-600 focus:ring-amber-500"
-                    />
-                    <span className="text-xs">بدون رائد فصل (إلغاء الإسناد)</span>
-                  </div>
-                </label>
-
-                {/* Teachers List */}
-                {teachers.map(t => {
-                  const isCurrentSelected = selectedLeaderTeacherId === t.id;
-                  const otherLeaderOf = Array.isArray(t.leader_of) 
-                    ? t.leader_of.filter(id => id !== assigningLeaderClass.id) 
-                    : [];
-                  const otherClassNames = otherLeaderOf
-                    .map(id => classes.find(c => c.id === id)?.name)
-                    .filter(Boolean);
-
-                  return (
-                    <label 
-                      key={t.id}
-                      className={`flex items-center justify-between p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                        isCurrentSelected 
-                          ? 'bg-amber-50/80 border-amber-500 text-amber-950 font-bold shadow-xs' 
-                          : 'bg-gray-50 border-transparent hover:bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <input 
-                          type="radio" 
-                          name="leaderTeacher" 
-                          value={t.id} 
-                          checked={isCurrentSelected}
-                          onChange={() => setSelectedLeaderTeacherId(t.id)}
-                          className="w-4 h-4 text-amber-600 focus:ring-amber-500"
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-sm font-bold">أ. {t.name}</span>
-                          {otherClassNames && otherClassNames.length > 0 && (
-                            <span className="text-[10px] text-amber-700 font-semibold">
-                              (رائد أيضاً لـ: {otherClassNames.join('، ')})
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {isCurrentSelected && (
-                        <span className="text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded-md font-bold">
-                          تم الاختيار
-                        </span>
-                      )}
-                    </label>
-                  );
-                })}
-
-                {teachers.length === 0 && (
-                  <p className="text-center py-6 text-xs text-gray-400 font-bold">
-                    لا يوجد معلمين مضافين في النظام بعد.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-5 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setAssigningLeaderClass(null)}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-200 transition-all"
-              >
-                إلغاء
-              </button>
-              <button
-                type="button"
-                disabled={isSavingLeader}
-                onClick={saveClassLeader}
-                className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-amber-200 transition-all active:scale-95 disabled:opacity-50"
-              >
-                <Save size={16} />
-                <span>{isSavingLeader ? 'جاري الحفظ...' : 'حفظ ريادة الفصل'}</span>
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
