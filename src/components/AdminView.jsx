@@ -43,6 +43,14 @@ const AdminView = () => {
   const [selectedLeaderTeacherId, setSelectedLeaderTeacherId] = useState('');
   const [isSavingLeader, setIsSavingLeader] = useState(false);
 
+  // School & Principal Info State
+  const [showSchoolInfoModal, setShowSchoolInfoModal] = useState(false);
+  const [principalName, setPrincipalName] = useState(() => localStorage.getItem('admin_principal_name') || '');
+  const [schoolPhone, setSchoolPhone] = useState(() => localStorage.getItem('admin_school_phone') || '');
+  const [schoolName, setSchoolName] = useState(() => localStorage.getItem('admin_school_name') || 'مدرسة سمرة بن عمرو الابتدائية');
+  const [educationDept, setEducationDept] = useState(() => localStorage.getItem('admin_education_dept') || 'ادارة التعليم بمحافظة حفر الباطن');
+  const [isSavingSchoolInfo, setIsSavingSchoolInfo] = useState(false);
+
   // Passwords Management & PIN State
   const [showPinModal, setShowPinModal] = useState(false);
   const [storedAdminPin, setStoredAdminPin] = useState('');
@@ -89,19 +97,53 @@ const AdminView = () => {
       const { data: clsData } = await supabase.from('classes').select('*').order('created_at');
       const { data: tchData } = await supabase.from('teachers').select('*').order('created_at');
       const { data: plansData } = await supabase.from('weekly_plans').select('*');
-      const { data: pwdSetting } = await supabase.from('settings').select('*').eq('key', 'teacher_passwords').maybeSingle();
-      const { data: adminPinSetting } = await supabase.from('settings').select('*').eq('key', 'admin_pin').maybeSingle();
-      
+      const { data: allSettings } = await supabase.from('settings').select('*');
+
       let passwordsObj = {};
-      if (pwdSetting && pwdSetting.value) {
-        try {
-          passwordsObj = typeof pwdSetting.value === 'string' ? JSON.parse(pwdSetting.value) : pwdSetting.value;
-        } catch (e) {
-          console.error('Error parsing teacher passwords:', e);
+      let savedPin = '';
+
+      if (allSettings && allSettings.length > 0) {
+        const settingsMap = {};
+        allSettings.forEach(s => { settingsMap[s.key] = s.value; });
+
+        if (settingsMap.teacher_passwords) {
+          try {
+            passwordsObj = typeof settingsMap.teacher_passwords === 'string' 
+              ? JSON.parse(settingsMap.teacher_passwords) 
+              : settingsMap.teacher_passwords;
+          } catch (e) {
+            console.error('Error parsing teacher passwords:', e);
+          }
+        }
+
+        if (settingsMap.admin_pin) {
+          savedPin = settingsMap.admin_pin;
+        }
+
+        if (settingsMap.principal_name !== undefined) {
+          setPrincipalName(settingsMap.principal_name || '');
+          localStorage.setItem('admin_principal_name', settingsMap.principal_name || '');
+        }
+
+        if (settingsMap.school_phone !== undefined) {
+          setSchoolPhone(settingsMap.school_phone || '');
+          localStorage.setItem('admin_school_phone', settingsMap.school_phone || '');
+        }
+
+        if (settingsMap.school_name !== undefined) {
+          setSchoolName(settingsMap.school_name || '');
+          localStorage.setItem('admin_school_name', settingsMap.school_name || '');
+        }
+
+        if (settingsMap.education_dept !== undefined) {
+          setEducationDept(settingsMap.education_dept || '');
+          localStorage.setItem('admin_education_dept', settingsMap.education_dept || '');
         }
       }
 
-      const savedPin = adminPinSetting?.value || localStorage.getItem('admin_master_pin') || '';
+      if (!savedPin) {
+        savedPin = localStorage.getItem('admin_master_pin') || '';
+      }
       setStoredAdminPin(savedPin);
 
       setClasses(clsData || []);
@@ -474,6 +516,34 @@ const AdminView = () => {
 
   const currentEditingClass = classes.find(c => c.id === editingScheduleClassId);
 
+  const handleSaveSchoolInfo = async (e) => {
+    if (e) e.preventDefault();
+    setIsSavingSchoolInfo(true);
+    try {
+      const { error } = await supabase.from('settings').upsert([
+        { key: 'principal_name', value: principalName.trim() },
+        { key: 'school_phone', value: schoolPhone.trim() },
+        { key: 'school_name', value: schoolName.trim() },
+        { key: 'education_dept', value: educationDept.trim() }
+      ]);
+
+      if (error) throw error;
+
+      localStorage.setItem('admin_principal_name', principalName.trim());
+      localStorage.setItem('admin_school_phone', schoolPhone.trim());
+      localStorage.setItem('admin_school_name', schoolName.trim());
+      localStorage.setItem('admin_education_dept', educationDept.trim());
+
+      setShowSchoolInfoModal(false);
+      alert('تم حفظ بيانات المدير والمدرسة بنجاح');
+    } catch (err) {
+      console.error('Error saving school info:', err);
+      alert(`خطأ في حفظ البيانات: ${err.message || err}`);
+    } finally {
+      setIsSavingSchoolInfo(false);
+    }
+  };
+
   const getTodayHijriFormatted = () => {
     try {
       const parts = new Intl.DateTimeFormat('en-US-u-ca-islamic-umalqura', {
@@ -608,6 +678,15 @@ const AdminView = () => {
           >
             <Upload size={16} className="text-emerald-600" />
             <span>استيراد جدول نصابي</span>
+          </button>
+
+          <button 
+            onClick={() => setShowSchoolInfoModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-800 hover:bg-blue-100 rounded-2xl font-bold text-xs border border-blue-200 shadow-sm transition-all active:scale-95"
+            title="تعديل اسم المدير وجوال المدرسة"
+          >
+            <User size={16} className="text-blue-600" />
+            <span>اسم المدير والجوال</span>
           </button>
 
           <button 
@@ -1575,8 +1654,8 @@ const AdminView = () => {
               {/* Header */}
               <div className="flex justify-between items-center mb-4 border-2 border-[#2b4c7e] p-3 rounded-3xl">
                 <div className="text-right leading-relaxed">
-                  <p className="font-bold text-[11px]">ادارة التعليم بمحافظة حفر الباطن</p>
-                  <p className="font-bold text-[11px]">مدرسة سمرة بن عمرو الابتدائية</p>
+                  <p className="font-bold text-[11px]">{educationDept || 'ادارة التعليم بمحافظة حفر الباطن'}</p>
+                  <p className="font-bold text-[11px]">{schoolName || 'مدرسة سمرة بن عمرو الابتدائية'}</p>
                 </div>
                 <div className="text-center">
                   <p className="font-bold text-[16px] text-[#2b4c7e] border-b-2 border-[#2b4c7e] mb-1 px-4">
@@ -1637,10 +1716,10 @@ const AdminView = () => {
               </div>
 
               <div className="mt-2 text-center text-[10px] font-bold text-slate-700 space-y-2">
-                <p>جوال المدرسة: 0545779288</p>
+                <p>جوال المدرسة: {schoolPhone || '.........................'}</p>
                 <div className="flex justify-between pt-2 px-4">
                   <p>رائد الفصل: {data.leaderName || '.........................'}</p>
-                  <p>مدير المدرسة: فرحان ضحوي العنزي</p>
+                  <p>مدير المدرسة: {principalName || '.........................'}</p>
                 </div>
               </div>
             </div>
@@ -1830,6 +1909,114 @@ const AdminView = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* School & Principal Info Modal Overlay */}
+      {showSchoolInfoModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in duration-200" dir="rtl">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
+            <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2.5 rounded-xl">
+                  <User size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">بيانات المدير والمدرسة</h3>
+                  <p className="text-xs text-blue-100 font-medium">تظهر في أسفل وأعلى الخطة الأسبوعية عند الطباعة</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSchoolInfoModal(false)}
+                className="p-1.5 hover:bg-white/20 rounded-full transition-all text-white/80 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSchoolInfo} className="p-6 space-y-4">
+              {/* اسم المدير */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block mr-1">
+                  اسم مدير المدرسة:
+                </label>
+                <input
+                  type="text"
+                  value={principalName}
+                  onChange={(e) => setPrincipalName(e.target.value)}
+                  placeholder="مثال: أحمد محمد القحطاني"
+                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                />
+              </div>
+
+              {/* جوال المدرسة */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block mr-1">
+                  جوال المدرسة:
+                </label>
+                <input
+                  type="text"
+                  value={schoolPhone}
+                  onChange={(e) => setSchoolPhone(e.target.value)}
+                  placeholder="مثال: 05xxxxxxxx"
+                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all text-left"
+                  dir="ltr"
+                />
+              </div>
+
+              {/* اسم المدرسة */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block mr-1">
+                  اسم المدرسة (الهيدر بالأعلى):
+                </label>
+                <input
+                  type="text"
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
+                  placeholder="مثال: مدرسة سمرة بن عمرو الابتدائية"
+                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                />
+              </div>
+
+              {/* إدارة التعليم */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block mr-1">
+                  إدارة التعليم (الهيدر بالأعلى):
+                </label>
+                <input
+                  type="text"
+                  value={educationDept}
+                  onChange={(e) => setEducationDept(e.target.value)}
+                  placeholder="مثال: ادارة التعليم بمحافظة حفر الباطن"
+                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                />
+              </div>
+
+              <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-blue-800 text-xs leading-relaxed">
+                💡 سيتم حفظ هذه البيانات سحابياً والاعتماد عليها تلقائياً في جميع عمليات التصدير والطباعة.
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isSavingSchoolInfo}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-2xl font-bold transition-all shadow-md shadow-blue-100 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                  <Save size={18} />
+                  <span>{isSavingSchoolInfo ? 'جاري الحفظ...' : 'حفظ البيانات'}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingSchoolInfo}
+                  onClick={() => setShowSchoolInfoModal(false)}
+                  className="px-5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold transition-all"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
