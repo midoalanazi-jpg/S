@@ -260,7 +260,7 @@ const AdminView = () => {
     }
   };
 
-  const handleVerifyAdminPin = (e) => {
+  const handleVerifyAdminPin = async (e) => {
     if (e) e.preventDefault();
     const entered = adminPin.trim();
 
@@ -279,15 +279,26 @@ const AdminView = () => {
       const nextAttempts = failedPinAttempts + 1;
       setFailedPinAttempts(nextAttempts);
 
-      if (nextAttempts >= 5) {
+      if (nextAttempts >= 10) {
+        try {
+          await supabase.from('settings').upsert({
+            key: 'admin_pin',
+            value: ''
+          });
+        } catch (err) {
+          console.error('Error resetting admin pin:', err);
+        }
+        localStorage.removeItem('admin_master_pin');
+        setStoredAdminPin('');
+        setFailedPinAttempts(0);
         setIsSettingNewPin(true);
         setAdminPin('');
         setNewPinVal('');
         setConfirmPinVal('');
-        setPinError('⚠️ تم إدخال الرمز خطأ 5 مرات متتالية. يرجى تعيين رمز سري جديد الآن.');
+        setPinError('⚠️ تم إدخال كلمة المرور خطأ 10 مرات وتم مسحها تلقائياً. يرجى تعيين كلمة مرور جديدة الآن:');
       } else {
-        const remaining = 5 - nextAttempts;
-        setPinError(`رمز الدخول غير صحيح! المحاولة (${nextAttempts}/5) - متبقي ${remaining} محاولات`);
+        const remaining = 10 - nextAttempts;
+        setPinError(`كلمة المرور غير صحيحة! المحاولة (${nextAttempts}/10) - متبقي ${remaining} محاولات قبل مسحها.`);
       }
     }
   };
@@ -707,7 +718,7 @@ const AdminView = () => {
           </button>
 
           <button 
-            onClick={handleOpenPinModal}
+            onClick={() => setShowPasswordsModal(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-800 hover:bg-amber-100 rounded-2xl font-bold text-xs border border-amber-200 shadow-sm transition-all active:scale-95"
             title="كلمات سر المعلمين"
           >

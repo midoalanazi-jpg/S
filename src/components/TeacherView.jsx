@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   Send, User, Users, Calendar, 
   BookOpen, Target, Home, StickyNote,
@@ -20,6 +20,7 @@ const DAYS = [
 const PERIODS = [1, 2, 3, 4, 5, 6, 7];
 
 function TeacherView() {
+  const navigate = useNavigate();
   const [teachers, setTeachers] = useState([]);
   const [classes, setClasses] = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
@@ -36,6 +37,17 @@ function TeacherView() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRotated, setIsRotated] = useState(true);
 
+  // Admin PIN Protection State
+  const [showAdminPinModal, setShowAdminPinModal] = useState(false);
+  const [storedAdminPin, setStoredAdminPin] = useState('');
+  const [adminPinInput, setAdminPinInput] = useState('');
+  const [adminPinError, setAdminPinError] = useState('');
+  const [failedAdminAttempts, setFailedAdminAttempts] = useState(0);
+  const [isSettingNewAdminPin, setIsSettingNewAdminPin] = useState(false);
+  const [newAdminPinVal, setNewAdminPinVal] = useState('');
+  const [confirmAdminPinVal, setConfirmAdminPinVal] = useState('');
+  const [showAdminPinText, setShowAdminPinText] = useState(false);
+
   // Load metadata from Supabase
   useEffect(() => {
     fetchInitialData();
@@ -47,6 +59,7 @@ function TeacherView() {
       const { data: clsData } = await supabase.from('classes').select('*');
       const { data: tchData } = await supabase.from('teachers').select('*');
       const { data: pwdSetting } = await supabase.from('settings').select('*').eq('key', 'teacher_passwords').maybeSingle();
+      const { data: pinSetting } = await supabase.from('settings').select('*').eq('key', 'admin_pin').maybeSingle();
 
       let passwordsObj = {};
       if (pwdSetting && pwdSetting.value) {
@@ -56,6 +69,9 @@ function TeacherView() {
           console.error('Error parsing teacher passwords:', e);
         }
       }
+
+      const savedPin = pinSetting?.value || localStorage.getItem('admin_master_pin') || '';
+      setStoredAdminPin(savedPin);
 
       setClasses(clsData || []);
       setTeachers(tchData || []);
@@ -249,6 +265,104 @@ function TeacherView() {
     setLoginError('');
   };
 
+  const handleOpenAdminModal = () => {
+    setAdminPinInput('');
+    setAdminPinError('');
+    setNewAdminPinVal('');
+    setConfirmAdminPinVal('');
+    setShowAdminPinText(false);
+    if (!storedAdminPin) {
+      setIsSettingNewAdminPin(true);
+    } else {
+      setIsSettingNewAdminPin(false);
+    }
+    setShowAdminPinModal(true);
+  };
+
+  const handleVerifyAdminPin = async (e) => {
+    if (e) e.preventDefault();
+    const entered = adminPinInput.trim();
+
+    if (!storedAdminPin) {
+      setIsSettingNewAdminPin(true);
+      return;
+    }
+
+    if (entered === storedAdminPin) {
+      setFailedAdminAttempts(0);
+      setShowAdminPinModal(false);
+      setAdminPinError('');
+      setAdminPinInput('');
+      sessionStorage.setItem('admin_authenticated', 'true');
+      navigate('/admin');
+    } else {
+      const nextAttempts = failedAdminAttempts + 1;
+      setFailedAdminAttempts(nextAttempts);
+
+      if (nextAttempts >= 10) {
+        // مسح كلمة المرور بالكامل بعد 10 محاولات خاطئة
+        try {
+          await supabase.from('settings').upsert({
+            key: 'admin_pin',
+            value: ''
+          });
+        } catch (err) {
+          console.error('Error resetting admin pin:', err);
+        }
+        localStorage.removeItem('admin_master_pin');
+        setStoredAdminPin('');
+        setFailedAdminAttempts(0);
+        setIsSettingNewAdminPin(true);
+        setAdminPinInput('');
+        setNewAdminPinVal('');
+        setConfirmAdminPinVal('');
+        setAdminPinError('⚠️ تم إدخال كلمة المرور خطأ 10 مرات وتم مسحها تلقائياً. يرجى ضبط كلمة مرور جديدة الآن:');
+      } else {
+        const remaining = 10 - nextAttempts;
+        setAdminPinError(`كلمة المرور غير صحيحة! المحاولة (${nextAttempts}/10) - متبقي ${remaining} محاولات قبل مسحها.`);
+      }
+    }
+  };
+
+  const handleSaveNewAdminPin = async (e) => {
+    if (e) e.preventDefault();
+    const pin = newAdminPinVal.trim();
+    if (!pin) {
+      setAdminPinError('يرجى إدخال كلمة مرور صالحة (حروف أو أرقام)');
+      return;
+    }
+    if (pin.length < 2) {
+      setAdminPinError('يجب أن تتكون كلمة المرور من خانتين على الأقل');
+      return;
+    }
+    if (confirmAdminPinVal.trim() && pin !== confirmAdminPinVal.trim()) {
+      setAdminPinError('كلمتا المرور غير متطابقتين!');
+      return;
+    }
+
+    try {
+      await supabase.from('settings').upsert({
+        key: 'admin_pin',
+        value: pin
+      });
+      localStorage.setItem('admin_master_pin', pin);
+      setStoredAdminPin(pin);
+      setFailedAdminAttempts(0);
+      setIsSettingNewAdminPin(false);
+      setShowAdminPinModal(false);
+      setAdminPinInput('');
+      setNewAdminPinVal('');
+      setConfirmAdminPinVal('');
+      setAdminPinError('');
+      sessionStorage.setItem('admin_authenticated', 'true');
+      alert('✅ تم ضبط كلمة مرور الإدارة بنجاح والدخول للوحة الإدارة');
+      navigate('/admin');
+    } catch (err) {
+      console.error('Error saving admin pin:', err);
+      setAdminPinError('حدث خطأ أثناء حفظ كلمة المرور');
+    }
+  };
+
   // Check if current selected teacher has a password
   const currentSelectedTeacher = teachers.find(t => t.id === selectedTeacherId);
   const teacherStoredPassword = selectedTeacherId ? (teacherPasswords[selectedTeacherId] || currentSelectedTeacher?.assignments?._password) : null;
@@ -409,9 +523,10 @@ function TeacherView() {
           </div>
 
           {/* زر لوحة تحكم الإدارة بتصميم مطابق لبطاقة بوابة المعلم */}
-          <Link
-            to="/admin"
-            className="mt-4 block w-full bg-white hover:bg-slate-50/80 p-6 rounded-[2.5rem] shadow-xl border border-slate-100 hover:border-indigo-100 transition-all duration-300 transform hover:-translate-y-1 group active:scale-[0.98]"
+          <button
+            type="button"
+            onClick={handleOpenAdminModal}
+            className="mt-4 block w-full bg-white hover:bg-slate-50/80 p-6 rounded-[2.5rem] shadow-xl border border-slate-100 hover:border-indigo-100 transition-all duration-300 transform hover:-translate-y-1 group active:scale-[0.98] text-right cursor-pointer"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -436,12 +551,162 @@ function TeacherView() {
                 <ChevronRight size={18} className="transform rotate-180" />
               </div>
             </div>
-          </Link>
+          </button>
 
           <div className="text-center mt-6 text-slate-500 opacity-80">
             <p className="text-xs font-bold tracking-wide text-indigo-600">برنامج نصابي</p>
           </div>
         </div>
+
+        {/* Admin PIN Verification & Setup Modal Overlay */}
+        {showAdminPinModal && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in" dir="rtl">
+            <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-7 space-y-6 animate-in zoom-in-95 border border-slate-100">
+              {isSettingNewAdminPin ? (
+                // شاشة تعيين / إعادة ضبط كلمة مرور الإدارة
+                <>
+                  <div className="text-center space-y-2">
+                    <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                      <KeyRound size={28} />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900">
+                      {storedAdminPin ? 'إعادة ضبط كلمة المرور' : 'تعيين كلمة مرور الإدارة'}
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                      حدد كلمة مرور خاصة بالمدير لحماية لوحة الإدارة وإعدادات المدرسة
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleSaveNewAdminPin} className="space-y-3.5">
+                    <div className="space-y-2.5">
+                      <div className="relative">
+                        <input 
+                          type={showAdminPinText ? 'text' : 'password'}
+                          autoFocus
+                          value={newAdminPinVal}
+                          onChange={(e) => {
+                            setNewAdminPinVal(e.target.value);
+                            if (adminPinError) setAdminPinError('');
+                          }}
+                          placeholder="كلمة المرور الجديدة..."
+                          className="w-full p-3.5 bg-slate-50 text-center text-base font-bold rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all pl-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminPinText(!showAdminPinText)}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showAdminPinText ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+
+                      <input 
+                        type={showAdminPinText ? 'text' : 'password'}
+                        value={confirmAdminPinVal}
+                        onChange={(e) => {
+                          setConfirmAdminPinVal(e.target.value);
+                          if (adminPinError) setAdminPinError('');
+                        }}
+                        placeholder="تأكيد كلمة المرور..."
+                        className="w-full p-3.5 bg-slate-50 text-center text-base font-bold rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      />
+
+                      {adminPinError && (
+                        <p className="text-xs font-bold text-red-500 text-center bg-red-50 p-2.5 rounded-xl border border-red-100 leading-relaxed">
+                          {adminPinError}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAdminPinModal(false);
+                          setAdminPinError('');
+                          setIsSettingNewAdminPin(false);
+                        }}
+                        className="w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-xs transition-all"
+                      >
+                        إلغاء
+                      </button>
+                      <button
+                        type="submit"
+                        className="w-2/3 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                      >
+                        <Save size={16} />
+                        <span>حفظ ومتابعة</span>
+                      </button>
+                    </div>
+                  </form>
+                </>
+              ) : (
+                // شاشة إدخال كلمة المرور للتحقق
+                <>
+                  <div className="text-center space-y-2">
+                    <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                      <Lock size={28} />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900">دخول لوحة الإدارة</h3>
+                    <p className="text-xs text-slate-500 font-medium">أدخل كلمة المرور الخاصة بالمدير للمتابعة</p>
+                  </div>
+
+                  <form onSubmit={handleVerifyAdminPin} className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <input 
+                          type={showAdminPinText ? 'text' : 'password'}
+                          autoFocus
+                          value={adminPinInput}
+                          onChange={(e) => {
+                            setAdminPinInput(e.target.value);
+                            if (adminPinError) setAdminPinError('');
+                          }}
+                          placeholder="أدخل كلمة المرور..."
+                          className="w-full p-4 bg-slate-50 text-center text-lg font-bold rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all pl-12"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminPinText(!showAdminPinText)}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showAdminPinText ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+
+                      {adminPinError && (
+                        <div className="text-xs font-bold text-red-500 text-center bg-red-50 p-3 rounded-xl border border-red-100 leading-relaxed">
+                          {adminPinError}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAdminPinModal(false);
+                          setAdminPinError('');
+                          setAdminPinInput('');
+                        }}
+                        className="w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-xs transition-all"
+                      >
+                        إلغاء
+                      </button>
+                      <button
+                        type="submit"
+                        className="w-2/3 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                      >
+                        <Lock size={16} />
+                        <span>دخول للإدارة</span>
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
