@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Plus, Trash2, Save, Download, Upload,
   User, Users, ChevronRight, FileText, CheckCircle2,
   Calendar, X, Layout, KeyRound, Lock, Eye, EyeOff, ShieldCheck, Search, Edit2, RotateCcw,
-  Star, Bookmark, Smartphone, Monitor, Check, Sparkles, RefreshCw
+  Star, Bookmark, Smartphone, Monitor, Check, Sparkles, RefreshCw, Home
 } from 'lucide-react';
 import HijriDatePicker from '@mk01/react-hijri-date-picker';
 
@@ -700,6 +701,16 @@ const AdminView = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* زر العودة للشاشة الرئيسية */}
+          <Link
+            to="/"
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 rounded-2xl font-bold text-xs border border-slate-200/80 shadow-xs transition-all active:scale-95"
+            title="العودة للشاشة الرئيسية (بوابة المعلم)"
+          >
+            <Home size={16} className="text-slate-600" />
+            <span>العودة للرئيسية</span>
+          </Link>
+
           {/* زر استيراد جدول نصابي */}
           <input 
             type="file" 
