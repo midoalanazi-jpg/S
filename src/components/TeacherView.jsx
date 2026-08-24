@@ -408,31 +408,31 @@ function TeacherView() {
             )}
           </div>
 
-          {/* زر لوحة تحكم الإدارة الكبير والمميز */}
+          {/* زر لوحة تحكم الإدارة بتصميم مطابق لبطاقة بوابة المعلم */}
           <Link
             to="/admin"
-            className="mt-5 block w-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white p-5 rounded-[2rem] shadow-xl shadow-indigo-100 border border-blue-500/20 transition-all duration-300 transform hover:-translate-y-1 group active:scale-[0.98]"
+            className="mt-4 block w-full bg-white hover:bg-slate-50/80 p-6 rounded-[2.5rem] shadow-xl border border-slate-100 hover:border-indigo-100 transition-all duration-300 transform hover:-translate-y-1 group active:scale-[0.98]"
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center transition-transform group-hover:scale-110 shadow-inner">
-                  <LayoutDashboard size={24} />
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm shrink-0">
+                  <LayoutDashboard size={26} />
                 </div>
                 <div className="text-right">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-white">
+                    <h2 className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
                       لوحة تحكم الإدارة
                     </h2>
-                    <span className="text-[10px] bg-white/20 text-blue-100 px-2 py-0.5 rounded-full font-bold">
+                    <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded-full">
                       خاص بالمدير
                     </span>
                   </div>
-                  <p className="text-xs text-blue-100/90 font-medium mt-0.5">
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">
                     إدارة الفصول والمعلمين، إعداد الجداول، وتصدير الخطط
                   </p>
                 </div>
               </div>
-              <div className="w-8 h-8 rounded-full bg-white/20 text-white flex items-center justify-center transition-transform group-hover:-translate-x-1">
+              <div className="w-9 h-9 rounded-2xl bg-slate-50 group-hover:bg-indigo-50 text-slate-400 group-hover:text-indigo-600 flex items-center justify-center transition-all duration-300">
                 <ChevronRight size={18} className="transform rotate-180" />
               </div>
             </div>
