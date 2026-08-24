@@ -79,6 +79,27 @@ const AdminView = () => {
   // Bookmark Prompt State
   const [showBookmarkPrompt, setShowBookmarkPrompt] = useState(false);
 
+  // Smooth Hide on Scroll Down State
+  const [showHeader, setShowHeader] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > lastScrollY && currentScrollY > 70) {
+        // Scroll Down -> Hide Header
+        setShowHeader(false);
+      } else {
+        // Scroll Up or Top -> Show Header
+        setShowHeader(true);
+      }
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
+
   // Load data from Supabase
   useEffect(() => {
     fetchInitialData();
@@ -683,59 +704,68 @@ const AdminView = () => {
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100 print:hidden gap-4">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">لوحة تحكم المدير</h1>
-            <p className="text-sm text-gray-500 font-medium">إدارة الفصول والمعلمين والخطط</p>
+      {/* Header مع تأثير الاختفاء السلس عند السكرول لأسفل والظهور عند السكرول لأعلى */}
+      <div className={`sticky top-3 z-40 transition-all duration-300 transform ${
+        showHeader ? 'translate-y-0 opacity-100' : '-translate-y-28 opacity-0 pointer-events-none'
+      } print:hidden`}>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white/95 backdrop-blur-md p-4 sm:p-5 rounded-3xl shadow-lg border border-slate-100 gap-4">
+          <div className="flex items-center gap-3">
+            <img 
+              src="/logo.png" 
+              alt="شعار منصة خطتي" 
+              className="w-12 h-12 object-contain rounded-2xl shadow-xs shrink-0 bg-white p-0.5 border border-slate-100" 
+            />
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">لوحة تحكم المدير</h1>
+              <p className="text-xs text-gray-500 font-medium">إدارة الفصول والمعلمين والخطط</p>
+            </div>
+            <button 
+              onClick={() => setShowSchoolInfoModal(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 text-blue-800 hover:bg-blue-100 rounded-2xl font-bold text-xs border border-blue-200 shadow-sm transition-all active:scale-95 mr-1"
+              title="تعديل بيانات المدرسة والمدير"
+            >
+              <User size={15} className="text-blue-600" />
+              <span>بيانات المدرسة</span>
+            </button>
           </div>
-          <button 
-            onClick={() => setShowSchoolInfoModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 text-blue-800 hover:bg-blue-100 rounded-2xl font-bold text-xs border border-blue-200 shadow-sm transition-all active:scale-95"
-            title="تعديل بيانات المدرسة والمدير"
-          >
-            <User size={15} className="text-blue-600" />
-            <span>بيانات المدرسة</span>
-          </button>
-        </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* زر العودة للشاشة الرئيسية */}
-          <Link
-            to="/"
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 rounded-2xl font-bold text-xs border border-slate-200/80 shadow-xs transition-all active:scale-95"
-            title="العودة للشاشة الرئيسية (بوابة المعلم)"
-          >
-            <Home size={16} className="text-slate-600" />
-            <span>العودة للرئيسية</span>
-          </Link>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* زر العودة للشاشة الرئيسية */}
+            <Link
+              to="/"
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 rounded-2xl font-bold text-xs border border-slate-200/80 shadow-xs transition-all active:scale-95"
+              title="العودة للشاشة الرئيسية (بوابة المعلم)"
+            >
+              <Home size={16} className="text-slate-600" />
+              <span>العودة للرئيسية</span>
+            </Link>
 
-          {/* زر استيراد جدول نصابي */}
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileSelect} 
-            accept=".nessaby,.json,application/json" 
-            className="hidden" 
-          />
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 rounded-2xl font-bold text-xs border border-emerald-200 shadow-sm transition-all active:scale-95"
-            title="استيراد جدول نصابي"
-          >
-            <Upload size={16} className="text-emerald-600" />
-            <span>استيراد جدول نصابي</span>
-          </button>
+            {/* زر استيراد جدول نصابي */}
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileSelect} 
+              accept=".nessaby,.json,application/json" 
+              className="hidden" 
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 rounded-2xl font-bold text-xs border border-emerald-200 shadow-sm transition-all active:scale-95"
+              title="استيراد جدول نصابي"
+            >
+              <Upload size={16} className="text-emerald-600" />
+              <span>استيراد جدول نصابي</span>
+            </button>
 
-          <button 
-            onClick={() => setShowPasswordsModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-800 hover:bg-amber-100 rounded-2xl font-bold text-xs border border-amber-200 shadow-sm transition-all active:scale-95"
-            title="كلمات سر المعلمين"
-          >
-            <KeyRound size={16} className="text-amber-600" />
-            <span>كلمات سر المعلمين</span>
-          </button>
+            <button 
+              onClick={() => setShowPasswordsModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-800 hover:bg-amber-100 rounded-2xl font-bold text-xs border border-amber-200 shadow-sm transition-all active:scale-95"
+              title="كلمات سر المعلمين"
+            >
+              <KeyRound size={16} className="text-amber-600" />
+              <span>كلمات سر المعلمين</span>
+            </button>
+          </div>
         </div>
       </div>
 

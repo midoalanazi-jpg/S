@@ -370,16 +370,37 @@ function TeacherView() {
 
   if (!selectedTeacherId || !isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-xl w-full border border-slate-100 space-y-6 animate-in fade-in">
-            <div className="text-center space-y-2">
-              <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
-                <Lock size={28} />
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+        {/* هيدر بسيط يختفي عند اختيار المعلم واسمه والدخول للجدول */}
+        <header className="w-full bg-white/80 backdrop-blur-md border-b border-slate-100 py-3 px-4 sm:px-8 sticky top-0 z-40 transition-all duration-300">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img 
+                src="/logo.png" 
+                alt="شعار منصة خطتي" 
+                className="w-10 h-10 object-contain rounded-xl shadow-xs" 
+              />
+              <div>
+                <h2 className="text-sm font-bold text-slate-800 leading-tight">منصة خطتي</h2>
+                <p className="text-[11px] text-slate-400 font-medium">الخطط الأسبوعية وجداول الحصص</p>
               </div>
-              <h1 className="text-2xl font-bold text-slate-900">بوابة المعلم</h1>
-              <p className="text-xs text-slate-400 font-medium">تسجيل الدخول والتحضير الأسبوعي</p>
             </div>
+            <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100/60">
+              نظام نصابي
+            </span>
+          </div>
+        </header>
+
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="w-full max-w-md">
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl w-full border border-slate-100 space-y-6 animate-in fade-in">
+              <div className="text-center space-y-2">
+                <div className="w-16 h-16 bg-white p-1 rounded-2xl flex items-center justify-center mx-auto shadow-md border border-slate-100">
+                  <img src="/logo.png" alt="اللوقو" className="w-full h-full object-contain rounded-xl" />
+                </div>
+                <h1 className="text-2xl font-bold text-slate-900">بوابة المعلم</h1>
+                <p className="text-xs text-slate-400 font-medium">تسجيل الدخول والتحضير الأسبوعي</p>
+              </div>
 
             {!selectedTeacherId ? (
               /* Step 1: Select Teacher Name */
@@ -557,6 +578,7 @@ function TeacherView() {
             <p className="text-xs font-bold tracking-wide text-indigo-600">برنامج نصابي</p>
           </div>
         </div>
+      </div>
 
         {/* Admin PIN Verification & Setup Modal Overlay */}
         {showAdminPinModal && (
