@@ -32,7 +32,6 @@ function TeacherView() {
   const [selectedCells, setSelectedCells] = useState([]); // Array of { day, period, slotInfo }
   const [saveStatus, setSaveStatus] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [mobileSelectedDay, setMobileSelectedDay] = useState('all');
 
   // Load metadata from Supabase
   useEffect(() => {
@@ -440,148 +439,79 @@ function TeacherView() {
         </div>
       </div>
 
-      {/* Mobile Day Filter Tabs */}
-      <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 no-scrollbar">
-        <button
-          type="button"
-          onClick={() => setMobileSelectedDay('all')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
-            mobileSelectedDay === 'all'
-              ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          عرض الأسبوع كامل
-        </button>
-        {DAYS.map(day => {
-          const teachingCount = PERIODS.reduce((count, p) => count + (getTeacherSlotInfo(day.id, p) ? 1 : 0), 0);
-          return (
-            <button
-              key={day.id}
-              type="button"
-              onClick={() => setMobileSelectedDay(day.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
-                mobileSelectedDay === day.id
-                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              <span>{day.name}</span>
-              {teachingCount > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-md leading-none font-black ${
-                  mobileSelectedDay === day.id ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-100 text-slate-500'
-                }`}>
-                  {teachingCount}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* Mobile Rotated 90-Degrees Table Grid (Columns: Days, Rows: Periods) */}
+      <div className="md:hidden bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden mb-20">
+        <table className="w-full border-collapse table-fixed text-center">
+          <thead>
+            <tr className="bg-slate-50/80 border-b border-slate-200">
+              <th className="p-1.5 text-slate-400 font-bold text-[9px] w-[14%] border-l border-slate-100">
+                الحصة
+              </th>
+              {DAYS.map(day => (
+                <th 
+                  key={day.id} 
+                  className="p-1.5 text-indigo-600 font-bold text-[10px] sm:text-xs border-l border-slate-100 last:border-l-0"
+                >
+                  {day.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {PERIODS.map(period => (
+              <tr key={period} className="border-b border-slate-100 last:border-b-0">
+                {/* Period Row Label */}
+                <td className="p-1 font-bold text-slate-600 bg-slate-50/60 border-l border-slate-100 text-[10px]">
+                  <span className="text-[10px] text-slate-500 font-bold">الحصة {period}</span>
+                </td>
 
-      {/* Mobile Vertical Schedule List */}
-      <div className="md:hidden space-y-3 mb-24">
-        {DAYS.filter(d => mobileSelectedDay === 'all' || mobileSelectedDay === d.id).map(day => {
-          const teachingCount = PERIODS.reduce((count, p) => count + (getTeacherSlotInfo(day.id, p) ? 1 : 0), 0);
-          return (
-            <div key={day.id} className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm space-y-2">
-              {/* Day Header */}
-              <div className="flex items-center justify-between px-1 pb-1.5 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
-                  <span className="font-bold text-slate-900 text-sm">{day.name}</span>
-                </div>
-                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
-                  {teachingCount} حصص دراسية
-                </span>
-              </div>
-
-              {/* Periods List */}
-              <div className="space-y-1.5">
-                {PERIODS.map(period => {
+                {/* Day Columns for this Period */}
+                {DAYS.map(day => {
                   const slotInfo = getTeacherSlotInfo(day.id, period);
                   const cellData = slotInfo ? planData[slotInfo.classId]?.[day.id]?.[period] : null;
                   const isSelected = selectedCells.some(c => c.day === day.id && c.period === period);
 
-                  if (!slotInfo) {
-                    return (
-                      <div 
-                        key={period}
-                        className="flex items-center justify-between px-3 py-1.5 bg-slate-50/50 rounded-xl border border-dashed border-slate-200/80 text-slate-400 text-xs"
-                      >
-                        <span className="font-semibold text-[11px] text-slate-400">الحصة {period}</span>
-                        <span className="text-[10px] text-slate-300 font-medium">— حصة شاغرة (فراغ)</span>
-                      </div>
-                    );
-                  }
-
                   return (
-                    <div
-                      key={period}
-                      onClick={() => toggleCellSelection(day.id, period, slotInfo)}
-                      className={`p-2.5 rounded-xl border transition-all cursor-pointer relative ${
-                        isSelected 
-                          ? 'bg-indigo-50/90 border-indigo-500 ring-1 ring-indigo-500 shadow-sm' 
-                          : 'bg-white hover:bg-slate-50/80 border-slate-200/90 shadow-xs'
+                    <td
+                      key={day.id}
+                      onClick={() => slotInfo && toggleCellSelection(day.id, period, slotInfo)}
+                      className={`p-1 border-l border-slate-100 last:border-l-0 h-13 sm:h-15 relative transition-all align-middle ${
+                        slotInfo
+                          ? `cursor-pointer ${
+                              isSelected 
+                                ? 'bg-indigo-100 ring-2 ring-inset ring-indigo-500 z-10' 
+                                : 'bg-white hover:bg-indigo-50/40'
+                            }`
+                          : 'bg-slate-50/20'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
-                            isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
-                          }`}>
-                            الحصة {period}
-                          </span>
-                          <span className="text-xs font-black text-indigo-700">
+                      {slotInfo ? (
+                        <div className="flex flex-col items-center justify-center h-full w-full select-none">
+                          {isSelected && (
+                            <div className="absolute top-0.5 left-0.5 bg-indigo-600 text-white rounded-full p-0.5 shadow-xs">
+                              <CheckCircle2 size={8} />
+                            </div>
+                          )}
+                          <span className="text-[9px] font-black text-indigo-600 leading-tight line-clamp-1">
                             {slotInfo.subject}
                           </span>
-                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                          <span className="text-[8px] font-bold text-slate-400 leading-tight line-clamp-1">
                             {slotInfo.className}
                           </span>
-                        </div>
-
-                        <div className="shrink-0">
-                          {isSelected ? (
-                            <div className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-xs">
-                              <CheckCircle2 size={13} />
-                            </div>
-                          ) : (
-                            <div className="w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center">
-                            </div>
+                          {cellData?.title && (
+                            <span className="text-[7px] text-indigo-900 bg-indigo-50/80 px-1 rounded truncate max-w-full font-medium mt-0.5">
+                              {cellData.title}
+                            </span>
                           )}
                         </div>
-                      </div>
-
-                      {/* Lesson Plan details if entered */}
-                      {cellData?.title ? (
-                        <div className="mt-2 bg-indigo-50/70 p-2 rounded-lg border border-indigo-100 text-right space-y-0.5">
-                          <p className="font-bold text-indigo-950 text-xs line-clamp-1">
-                            📖 {cellData.title}
-                          </p>
-                          {cellData.objective && (
-                            <p className="text-[10px] text-indigo-700 line-clamp-1 font-medium">
-                              🎯 {cellData.objective}
-                            </p>
-                          )}
-                          {cellData.homework && (
-                            <p className="text-[10px] text-indigo-500 line-clamp-1 font-medium">
-                              🏠 واجب: {cellData.homework}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-indigo-500/80">
-                          <Plus size={12} />
-                          <span>اضغط لتحديد الحصة والتحضير</span>
-                        </div>
-                      )}
-                    </div>
+                      ) : null}
+                    </td>
                   );
                 })}
-              </div>
-            </div>
-          );
-        })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {/* Desktop Weekly Grid */}
