@@ -657,12 +657,23 @@ const AdminView = () => {
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100 print:hidden">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">لوحة تحكم المدير</h1>
-          <p className="text-sm text-gray-500 font-medium">إدارة الفصول والمعلمين والخطط</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100 print:hidden gap-4">
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">لوحة تحكم المدير</h1>
+            <p className="text-sm text-gray-500 font-medium">إدارة الفصول والمعلمين والخطط</p>
+          </div>
+          <button 
+            onClick={() => setShowSchoolInfoModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 text-blue-800 hover:bg-blue-100 rounded-2xl font-bold text-xs border border-blue-200 shadow-sm transition-all active:scale-95"
+            title="تعديل بيانات المدرسة والمدير"
+          >
+            <User size={15} className="text-blue-600" />
+            <span>بيانات المدرسة</span>
+          </button>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
           {/* زر استيراد جدول نصابي */}
           <input 
             type="file" 
@@ -678,15 +689,6 @@ const AdminView = () => {
           >
             <Upload size={16} className="text-emerald-600" />
             <span>استيراد جدول نصابي</span>
-          </button>
-
-          <button 
-            onClick={() => setShowSchoolInfoModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-800 hover:bg-blue-100 rounded-2xl font-bold text-xs border border-blue-200 shadow-sm transition-all active:scale-95"
-            title="تعديل اسم المدير وجوال المدرسة"
-          >
-            <User size={16} className="text-blue-600" />
-            <span>اسم المدير والجوال</span>
           </button>
 
           <button 
