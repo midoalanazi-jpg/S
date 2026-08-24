@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Send, User, Users, Calendar, 
   BookOpen, Target, Home, StickyNote,
   AlertCircle, X, Save, Plus, CheckCircle2, ChevronRight,
-  Lock, KeyRound, Eye, EyeOff, ShieldCheck, RotateCw, Smartphone, Maximize2, Minimize2
+  Lock, KeyRound, Eye, EyeOff, ShieldCheck, RotateCw, Smartphone, Maximize2, Minimize2,
+  LayoutDashboard
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -405,8 +407,39 @@ function TeacherView() {
               </form>
             )}
           </div>
+
+          {/* زر لوحة تحكم الإدارة الكبير والمميز */}
+          <Link
+            to="/admin"
+            className="mt-5 block w-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white p-5 rounded-[2rem] shadow-xl shadow-indigo-100 border border-blue-500/20 transition-all duration-300 transform hover:-translate-y-1 group active:scale-[0.98]"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center transition-transform group-hover:scale-110 shadow-inner">
+                  <LayoutDashboard size={24} />
+                </div>
+                <div className="text-right">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-white">
+                      لوحة تحكم الإدارة
+                    </h2>
+                    <span className="text-[10px] bg-white/20 text-blue-100 px-2 py-0.5 rounded-full font-bold">
+                      خاص بالمدير
+                    </span>
+                  </div>
+                  <p className="text-xs text-blue-100/90 font-medium mt-0.5">
+                    إدارة الفصول والمعلمين، إعداد الجداول، وتصدير الخطط
+                  </p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/20 text-white flex items-center justify-center transition-transform group-hover:-translate-x-1">
+                <ChevronRight size={18} className="transform rotate-180" />
+              </div>
+            </div>
+          </Link>
+
           <div className="text-center mt-6 text-slate-500 opacity-80">
-            <p className="text-sm font-bold tracking-wide text-indigo-600">برنامج نصابي</p>
+            <p className="text-xs font-bold tracking-wide text-indigo-600">برنامج نصابي</p>
           </div>
         </div>
       </div>
