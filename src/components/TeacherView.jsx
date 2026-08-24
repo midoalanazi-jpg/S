@@ -32,7 +32,7 @@ function TeacherView() {
   const [selectedCells, setSelectedCells] = useState([]); // Array of { day, period, slotInfo }
   const [saveStatus, setSaveStatus] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isLandscapeRotated, setIsLandscapeRotated] = useState(false);
+  const [isRotated, setIsRotated] = useState(true);
 
   // Load metadata from Supabase
   useEffect(() => {
@@ -417,325 +417,143 @@ function TeacherView() {
 
   // Modal / Popup
   return (
-    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-8">
-      {/* Header */}
-      <div className="max-w-7xl mx-auto mb-4 md:mb-8 flex flex-col md:flex-row justify-between items-center gap-3 md:gap-4">
-        <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2.5 sm:p-3 rounded-2xl text-white shadow-lg shrink-0">
-              <Calendar size={22} />
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-8 flex flex-col justify-between">
+      <div>
+        {/* Header */}
+        <div className="max-w-7xl mx-auto mb-4 md:mb-6 flex flex-col md:flex-row justify-between items-center gap-3 md:gap-4">
+          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div className="flex items-center gap-3">
+              <div className="bg-indigo-600 p-2.5 sm:p-3 rounded-2xl text-white shadow-lg shrink-0">
+                <Calendar size={22} />
+              </div>
+              <div>
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">{currentTeacher?.name}</h1>
+                <p className="text-xs text-slate-500">الجدول الدراسي والتحضير الأسبوعي</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">{currentTeacher?.name}</h1>
-              <p className="text-xs text-slate-500">الجدول الدراسي والتحضير الأسبوعي</p>
-            </div>
+            {saveStatus && (
+              <span className="text-[11px] font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full md:hidden">
+                {saveStatus}
+              </span>
+            )}
           </div>
-          {saveStatus && (
-            <span className="text-[11px] font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full md:hidden">
-              {saveStatus}
-            </span>
-          )}
-        </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto justify-between md:justify-end">
-          {/* Rotate 90 deg / Landscape toggle button */}
-          <button
-            type="button"
-            onClick={() => setIsLandscapeRotated(!isLandscapeRotated)}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 shadow-xs ${
-              isLandscapeRotated 
-                ? 'bg-indigo-600 text-white ring-2 ring-indigo-300' 
-                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-            title="تدوير الجدول 90 درجة بالعرض"
-          >
-            <RotateCw size={14} className={isLandscapeRotated ? 'animate-spin-once' : ''} />
-            <span>{isLandscapeRotated ? 'إغلاق وضع العرض' : 'تدوير 90° (عرض)'}</span>
-          </button>
+          <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto justify-between md:justify-end">
+            {/* Flip / Rotate Button */}
+            <button
+              type="button"
+              onClick={() => setIsRotated(!isRotated)}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 shadow-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+              title="قلب اتجاه الجدول"
+            >
+              <RotateCw size={15} />
+              <span>{isRotated ? 'قلب الجدول (عادي)' : 'قلب الجدول (90°)'}</span>
+            </button>
 
-          {saveStatus && (
-            <span className="hidden md:inline-block text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full">
-              {saveStatus}
-            </span>
-          )}
+            {saveStatus && (
+              <span className="hidden md:inline-block text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full">
+                {saveStatus}
+              </span>
+            )}
 
-          <button 
-            type="button"
-            onClick={handleLogoutTeacher}
-            className="text-xs sm:text-sm font-bold text-slate-500 hover:text-slate-700 transition-all flex items-center gap-1 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl"
-          >
-            ← تغيير المعلم
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Rotated 90-Degree Schedule Grid (Columns: Days, Rows: Periods) */}
-      <div className="md:hidden bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden mb-20">
-        <div className="bg-indigo-50/70 px-3 py-2 border-b border-indigo-100 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-indigo-900 font-bold text-xs">
-            <Smartphone size={14} className="text-indigo-600" />
-            <span>جدول الحصص (عرض 90° متوافق مع الجوال)</span>
+            <button 
+              type="button"
+              onClick={handleLogoutTeacher}
+              className="text-xs sm:text-sm font-bold text-slate-500 hover:text-slate-700 transition-all flex items-center gap-1 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl"
+            >
+              ← تغيير المعلم
+            </button>
           </div>
-          <span className="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded-md border border-indigo-100">
-            {selectedCells.length > 0 ? `${selectedCells.length} محددة` : 'اضغط للتحضير'}
-          </span>
         </div>
 
-        <table className="w-full border-collapse table-fixed text-center">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="p-1.5 text-slate-400 font-bold text-[9px] w-[15%] border-l border-slate-100">
-                الحصة
-              </th>
-              {DAYS.map(day => (
-                <th 
-                  key={day.id} 
-                  className="p-1.5 text-indigo-700 font-bold text-[10px] w-[17%] border-l border-slate-100 last:border-l-0"
-                >
-                  {day.name}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {PERIODS.map(period => (
-              <tr key={period} className="border-b border-slate-100 last:border-b-0">
-                {/* Period Label */}
-                <td className="p-1 font-bold text-slate-700 bg-slate-50/80 border-l border-slate-100 text-[10px]">
-                  <span>ح {period}</span>
-                </td>
-
-                {/* Day Columns for this Period */}
-                {DAYS.map(day => {
-                  const slotInfo = getTeacherSlotInfo(day.id, period);
-                  const cellData = slotInfo ? planData[slotInfo.classId]?.[day.id]?.[period] : null;
-                  const isSelected = selectedCells.some(c => c.day === day.id && c.period === period);
-
-                  return (
-                    <td
-                      key={day.id}
-                      onClick={() => slotInfo && toggleCellSelection(day.id, period, slotInfo)}
-                      className={`p-1 border-l border-slate-100 last:border-l-0 h-14 relative transition-all align-middle ${
-                        slotInfo
-                          ? `cursor-pointer ${
-                              isSelected 
-                                ? 'bg-indigo-100 ring-2 ring-inset ring-indigo-500 z-10' 
-                                : 'bg-white active:bg-indigo-50/70'
-                            }`
-                          : 'bg-slate-50/30'
-                      }`}
-                    >
-                      {slotInfo ? (
-                        <div className="flex flex-col items-center justify-center h-full w-full select-none">
-                          {isSelected && (
-                            <div className="absolute top-0.5 left-0.5 bg-indigo-600 text-white rounded-full p-0.5 shadow-xs">
-                              <CheckCircle2 size={8} />
-                            </div>
-                          )}
-                          <span className="text-[9px] font-black text-indigo-700 leading-tight line-clamp-1">
-                            {slotInfo.subject}
-                          </span>
-                          <span className="text-[8px] font-bold text-slate-500 leading-tight line-clamp-1">
-                            {slotInfo.className}
-                          </span>
-                          {cellData?.title && (
-                            <span className="text-[7px] text-indigo-950 bg-indigo-50 px-1 rounded truncate max-w-full font-bold mt-0.5 border border-indigo-100">
-                              {cellData.title}
-                            </span>
-                          )}
-                        </div>
-                      ) : null}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Desktop Weekly Grid */}
-      <div className="hidden md:block max-w-7xl mx-auto bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse min-w-[800px]">
-            <thead>
-              <tr className="bg-slate-50/50">
-                <th className="p-6 border-b border-slate-100 text-slate-400 font-bold text-xs w-32 text-right">اليوم \ الحصة</th>
-                {PERIODS.map(period => (
-                  <th key={period} className="p-6 border-b border-slate-100 text-slate-900 font-bold text-center">
-                    الحصة {period}
+        {/* Schedule Table Container - Unified Structure: Rows = Days, Columns = Periods */}
+        <div className={`w-full max-w-7xl mx-auto transition-all duration-300 ${
+          isRotated 
+            ? 'py-4 flex items-center justify-center min-h-[740px] sm:min-h-[780px] md:min-h-0 md:py-0 overflow-hidden' 
+            : 'overflow-x-auto'
+        }`}>
+          <div className={`bg-white shadow-sm border border-slate-200 md:border-slate-100 transition-all duration-300 ${
+            isRotated 
+              ? 'w-[730px] max-w-[86vh] h-[330px] max-h-[90vw] transform rotate-90 origin-center rounded-2xl shrink-0 my-auto md:transform-none md:w-full md:max-w-none md:h-auto md:max-h-none md:rounded-[2.5rem]' 
+              : 'w-full min-w-[780px] rounded-2xl md:rounded-[2.5rem]'
+          } overflow-hidden`}>
+            <table className="w-full h-full border-collapse table-fixed text-center">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="p-2 md:p-5 border-b border-l border-slate-100 text-slate-400 font-bold text-[10px] md:text-xs w-24 md:w-32 text-right">
+                    اليوم \ الحصة
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {DAYS.map(day => (
-                <tr key={day.id} className="hover:bg-slate-50/30 transition-all group">
-                  <td className="p-4 border-b border-l border-slate-50 text-right font-bold text-indigo-600 bg-slate-50/20">
-                    {day.name}
-                  </td>
-                  {PERIODS.map(period => {
-                    const slotInfo = getTeacherSlotInfo(day.id, period);
-                    const cellData = slotInfo ? planData[slotInfo.classId]?.[day.id]?.[period] : null;
-                    const isSelected = selectedCells.some(c => c.day === day.id && c.period === period);
-                    
-                    return (
-                      <td 
-                        key={period} 
-                        onClick={() => slotInfo && toggleCellSelection(day.id, period, slotInfo)}
-                        className={`p-2 border-b border-slate-50 transition-all relative h-28 ${
-                          slotInfo 
-                          ? `cursor-pointer ${isSelected ? 'bg-indigo-100 ring-2 ring-inset ring-indigo-500 z-10' : 'hover:bg-indigo-50/50'}` 
-                          : 'bg-gray-50/30 opacity-20 cursor-not-allowed'
-                        }`}
-                      >
-                        <div className="flex flex-col h-full">
-                          {isSelected && (
-                            <div className="absolute top-1 left-1 bg-indigo-600 text-white rounded-full p-0.5 shadow-sm">
-                              <CheckCircle2 size={10} />
-                            </div>
-                          )}
-                          {slotInfo && (
-                            <div className="text-[9px] font-black text-indigo-500 mb-1 px-1 flex flex-col items-end leading-tight">
-                              <span>{slotInfo.subject}</span>
-                              <span className="text-[8px] opacity-60">{slotInfo.className}</span>
-                            </div>
-                          )}
-                          
-                          {cellData?.title ? (
-                            <div className="flex-1 bg-indigo-50/50 p-2 rounded-xl border border-indigo-100 text-right space-y-0.5">
-                              <p className="font-bold text-indigo-900 text-[10px] line-clamp-1">{cellData.title}</p>
-                              <p className="text-[8px] text-indigo-400 line-clamp-1">{cellData.objective}</p>
-                            </div>
-                          ) : slotInfo ? (
-                            <div className="flex-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                               <div className="p-2 bg-slate-100 rounded-full text-slate-400">
-                                 <Plus size={16} />
-                               </div>
-                            </div>
-                          ) : null}
-                        </div>
-                      </td>
-                    );
-                  })}
+                  {PERIODS.map(period => (
+                    <th key={period} className="p-2 md:p-5 border-b border-l border-slate-100 last:border-l-0 text-slate-900 font-bold text-center text-[10px] md:text-sm">
+                      الحصة {period}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* 90-Degree Fullscreen Landscape Overlay Mode */}
-      {isLandscapeRotated && (
-        <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-2 overflow-hidden animate-in fade-in duration-200">
-          <div className="w-[96vh] h-[94vw] max-w-none max-h-none transform rotate-90 origin-center bg-white rounded-3xl shadow-2xl p-3 flex flex-col justify-between overflow-hidden border border-slate-200">
-            {/* Header inside landscape modal */}
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="bg-indigo-600 text-white p-1.5 rounded-xl shadow-xs">
-                  <RotateCw size={14} />
-                </div>
-                <div>
-                  <span className="font-bold text-slate-900 text-xs">{currentTeacher?.name}</span>
-                  <span className="text-[10px] text-indigo-600 font-semibold mr-2">• وضع العرض الأفقي 90°</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedCells.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveCell({
-                      isBulk: true,
-                      day: selectedCells[0].day,
-                      period: selectedCells[0].period,
-                      slotInfo: selectedCells[0].slotInfo
-                    })}
-                    className="bg-indigo-600 text-white px-3 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all"
-                  >
-                    <Send size={12} />
-                    <span>تحضير ({selectedCells.length})</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setIsLandscapeRotated(false)}
-                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
-                >
-                  <X size={14} />
-                  <span>إغلاق</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Full 7x5 Table inside rotated container */}
-            <div className="flex-1 overflow-auto mt-2">
-              <table className="w-full h-full border-collapse table-fixed text-center">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="p-1 text-slate-400 font-bold text-[9px] w-16 border-l border-slate-100 text-right">اليوم \ الحصة</th>
-                    {PERIODS.map(period => (
-                      <th key={period} className="p-1 text-indigo-900 font-bold text-[10px] border-l border-slate-100 last:border-l-0">
-                        الحصة {period}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {DAYS.map(day => (
-                    <tr key={day.id} className="border-b border-slate-100 last:border-b-0">
-                      <td className="p-1 border-l border-slate-100 text-right font-bold text-indigo-600 bg-slate-50/50 text-[10px]">
-                        {day.name}
-                      </td>
-                      {PERIODS.map(period => {
-                        const slotInfo = getTeacherSlotInfo(day.id, period);
-                        const cellData = slotInfo ? planData[slotInfo.classId]?.[day.id]?.[period] : null;
-                        const isSelected = selectedCells.some(c => c.day === day.id && c.period === period);
-                        return (
-                          <td
-                            key={period}
-                            onClick={() => slotInfo && toggleCellSelection(day.id, period, slotInfo)}
-                            className={`p-1 border-l border-slate-100 last:border-l-0 relative align-middle transition-all ${
-                              slotInfo
-                                ? `cursor-pointer ${
-                                    isSelected ? 'bg-indigo-100 ring-2 ring-inset ring-indigo-500 z-10' : 'hover:bg-indigo-50/40'
-                                  }`
-                                : 'bg-slate-50/20'
-                            }`}
-                          >
-                            {slotInfo ? (
-                              <div className="flex flex-col items-center justify-center h-full w-full select-none">
-                                {isSelected && (
-                                  <div className="absolute top-0.5 left-0.5 bg-indigo-600 text-white rounded-full p-0.5 shadow-xs">
-                                    <CheckCircle2 size={8} />
-                                  </div>
-                                )}
-                                <span className="text-[9px] font-black text-indigo-600 leading-tight line-clamp-1">
-                                  {slotInfo.subject}
-                                </span>
-                                <span className="text-[8px] font-bold text-slate-400 leading-tight line-clamp-1">
-                                  {slotInfo.className}
-                                </span>
-                                {cellData?.title && (
-                                  <span className="text-[7px] text-indigo-900 bg-indigo-50/90 px-1 rounded truncate max-w-full font-medium mt-0.5">
-                                    {cellData.title}
-                                  </span>
-                                )}
+              </thead>
+              <tbody>
+                {DAYS.map(day => (
+                  <tr key={day.id} className="hover:bg-slate-50/30 transition-all group border-b border-slate-50 last:border-b-0">
+                    <td className="p-2 md:p-4 border-l border-slate-50 text-right font-bold text-indigo-600 bg-slate-50/30 text-[10px] md:text-sm">
+                      {day.name}
+                    </td>
+                    {PERIODS.map(period => {
+                      const slotInfo = getTeacherSlotInfo(day.id, period);
+                      const cellData = slotInfo ? planData[slotInfo.classId]?.[day.id]?.[period] : null;
+                      const isSelected = selectedCells.some(c => c.day === day.id && c.period === period);
+                      
+                      return (
+                        <td 
+                          key={period} 
+                          onClick={() => slotInfo && toggleCellSelection(day.id, period, slotInfo)}
+                          className={`p-1 md:p-2 border-l border-slate-50 last:border-l-0 transition-all relative h-12 md:h-28 align-middle ${
+                            slotInfo 
+                            ? `cursor-pointer ${
+                                isSelected 
+                                  ? 'bg-indigo-100 ring-2 ring-inset ring-indigo-500 z-10' 
+                                  : 'hover:bg-indigo-50/50 active:bg-indigo-100'
+                              }` 
+                            : 'bg-gray-50/30 opacity-20 cursor-not-allowed'
+                          }`}
+                        >
+                          <div className="flex flex-col h-full justify-between select-none">
+                            {isSelected && (
+                              <div className="absolute top-0.5 left-0.5 md:top-1 md:left-1 bg-indigo-600 text-white rounded-full p-0.5 shadow-sm">
+                                <CheckCircle2 size={9} className="md:w-3 md:h-3" />
+                              </div>
+                            )}
+                            {slotInfo && (
+                              <div className="text-[9px] md:text-[10px] font-black text-indigo-600 px-0.5 flex flex-col items-end leading-tight">
+                                <span className="truncate max-w-full">{slotInfo.subject}</span>
+                                <span className="text-[7px] md:text-[8px] opacity-60 truncate max-w-full">{slotInfo.className}</span>
+                              </div>
+                            )}
+                            
+                            {cellData?.title ? (
+                              <div className="bg-indigo-50/70 p-0.5 md:p-2 rounded md:rounded-xl border border-indigo-100 text-right">
+                                <p className="font-bold text-indigo-900 text-[7px] md:text-[10px] line-clamp-1">{cellData.title}</p>
+                                <p className="hidden md:block text-[8px] text-indigo-400 line-clamp-1">{cellData.objective}</p>
+                              </div>
+                            ) : slotInfo ? (
+                              <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                                 <div className="p-0.5 md:p-2 bg-slate-100 rounded-full text-slate-400">
+                                   <Plus size={10} className="md:w-4 md:h-4" />
+                                 </div>
                               </div>
                             ) : null}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Floating Action Button for Selection */}
-      {selectedCells.length > 0 && !isLandscapeRotated && (
+      {selectedCells.length > 0 && (
         <div className="fixed bottom-4 right-4 left-4 md:left-auto md:w-80 z-40 animate-in slide-in-from-bottom-6">
           <button 
             type="button"
@@ -904,17 +722,17 @@ function TeacherView() {
       {/* Mobile info hint */}
       <div className="md:hidden mt-4 p-3 bg-indigo-50/60 rounded-2xl border border-indigo-100 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Smartphone className="text-indigo-600 shrink-0" size={18} />
+          <RotateCw className="text-indigo-600 shrink-0" size={16} />
           <p className="text-[11px] text-indigo-900 font-bold leading-tight">
-            الجدول معروض بنمط 90° متوافق تماماً مع شاشة الجوال
+            {isRotated ? 'الجدول مائل 90° ليتناسب مع شاشة الجوال بالعرض' : 'الجدول بالوضع العادي (اسحب لليمين واليسار)'}
           </p>
         </div>
         <button
           type="button"
-          onClick={() => setIsLandscapeRotated(true)}
-          className="text-[10px] font-bold text-indigo-700 bg-white px-2 py-1 rounded-lg border border-indigo-200 shrink-0 hover:bg-indigo-50"
+          onClick={() => setIsRotated(!isRotated)}
+          className="text-[10px] font-bold text-indigo-700 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 shrink-0 hover:bg-indigo-50 shadow-xs"
         >
-          عرض كامل 🔄
+          قلب الجدول 🔄
         </button>
       </div>
     </div>
