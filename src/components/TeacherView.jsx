@@ -3,7 +3,7 @@ import {
   Send, User, Users, Calendar, 
   BookOpen, Target, Home, StickyNote,
   AlertCircle, X, Save, Plus, CheckCircle2, ChevronRight,
-  Lock, KeyRound, Eye, EyeOff, ShieldCheck
+  Lock, KeyRound, Eye, EyeOff, ShieldCheck, RotateCw, Smartphone, Maximize2, Minimize2
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -32,6 +32,7 @@ function TeacherView() {
   const [selectedCells, setSelectedCells] = useState([]); // Array of { day, period, slotInfo }
   const [saveStatus, setSaveStatus] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isLandscapeRotated, setIsLandscapeRotated] = useState(false);
 
   // Load metadata from Supabase
   useEffect(() => {
@@ -418,39 +419,78 @@ function TeacherView() {
   return (
     <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-8">
       {/* Header */}
-      <div className="max-w-7xl mx-auto mb-4 md:mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4 bg-white md:bg-transparent p-3.5 md:p-0 rounded-2xl border md:border-0 border-slate-100 shadow-xs md:shadow-none">
-        <div className="flex items-center gap-3">
-          <div className="bg-indigo-600 p-2.5 md:p-3 rounded-xl md:rounded-2xl text-white shadow-md">
-            <Calendar size={20} className="md:w-6 md:h-6" />
+      <div className="max-w-7xl mx-auto mb-4 md:mb-8 flex flex-col md:flex-row justify-between items-center gap-3 md:gap-4">
+        <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-600 p-2.5 sm:p-3 rounded-2xl text-white shadow-lg shrink-0">
+              <Calendar size={22} />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">{currentTeacher?.name}</h1>
+              <p className="text-xs text-slate-500">الجدول الدراسي والتحضير الأسبوعي</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-base md:text-xl font-bold text-slate-900 leading-tight">{currentTeacher?.name}</h1>
-            <p className="text-xs text-slate-400">الجدول الدراسي الأسبوعي الموحد</p>
-          </div>
+          {saveStatus && (
+            <span className="text-[11px] font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full md:hidden">
+              {saveStatus}
+            </span>
+          )}
         </div>
-        <div className="flex items-center justify-between w-full md:w-auto gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
-          <span className="text-[11px] font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">{saveStatus}</span>
+
+        <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto justify-between md:justify-end">
+          {/* Rotate 90 deg / Landscape toggle button */}
+          <button
+            type="button"
+            onClick={() => setIsLandscapeRotated(!isLandscapeRotated)}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 shadow-xs ${
+              isLandscapeRotated 
+                ? 'bg-indigo-600 text-white ring-2 ring-indigo-300' 
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
+            title="تدوير الجدول 90 درجة بالعرض"
+          >
+            <RotateCw size={14} className={isLandscapeRotated ? 'animate-spin-once' : ''} />
+            <span>{isLandscapeRotated ? 'إغلاق وضع العرض' : 'تدوير 90° (عرض)'}</span>
+          </button>
+
+          {saveStatus && (
+            <span className="hidden md:inline-block text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full">
+              {saveStatus}
+            </span>
+          )}
+
           <button 
+            type="button"
             onClick={handleLogoutTeacher}
-            className="text-xs md:text-sm font-bold text-slate-500 hover:text-slate-700 transition-all flex items-center gap-1 bg-slate-100 md:bg-transparent px-3 py-1.5 md:p-0 rounded-xl"
+            className="text-xs sm:text-sm font-bold text-slate-500 hover:text-slate-700 transition-all flex items-center gap-1 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl"
           >
             ← تغيير المعلم
           </button>
         </div>
       </div>
 
-      {/* Mobile Rotated 90-Degrees Table Grid (Columns: Days, Rows: Periods) */}
+      {/* Mobile Rotated 90-Degree Schedule Grid (Columns: Days, Rows: Periods) */}
       <div className="md:hidden bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden mb-20">
+        <div className="bg-indigo-50/70 px-3 py-2 border-b border-indigo-100 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-indigo-900 font-bold text-xs">
+            <Smartphone size={14} className="text-indigo-600" />
+            <span>جدول الحصص (عرض 90° متوافق مع الجوال)</span>
+          </div>
+          <span className="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded-md border border-indigo-100">
+            {selectedCells.length > 0 ? `${selectedCells.length} محددة` : 'اضغط للتحضير'}
+          </span>
+        </div>
+
         <table className="w-full border-collapse table-fixed text-center">
           <thead>
-            <tr className="bg-slate-50/80 border-b border-slate-200">
-              <th className="p-1.5 text-slate-400 font-bold text-[9px] w-[14%] border-l border-slate-100">
+            <tr className="bg-slate-50 border-b border-slate-200">
+              <th className="p-1.5 text-slate-400 font-bold text-[9px] w-[15%] border-l border-slate-100">
                 الحصة
               </th>
               {DAYS.map(day => (
                 <th 
                   key={day.id} 
-                  className="p-1.5 text-indigo-600 font-bold text-[10px] sm:text-xs border-l border-slate-100 last:border-l-0"
+                  className="p-1.5 text-indigo-700 font-bold text-[10px] w-[17%] border-l border-slate-100 last:border-l-0"
                 >
                   {day.name}
                 </th>
@@ -460,9 +500,9 @@ function TeacherView() {
           <tbody>
             {PERIODS.map(period => (
               <tr key={period} className="border-b border-slate-100 last:border-b-0">
-                {/* Period Row Label */}
-                <td className="p-1 font-bold text-slate-600 bg-slate-50/60 border-l border-slate-100 text-[10px]">
-                  <span className="text-[10px] text-slate-500 font-bold">الحصة {period}</span>
+                {/* Period Label */}
+                <td className="p-1 font-bold text-slate-700 bg-slate-50/80 border-l border-slate-100 text-[10px]">
+                  <span>ح {period}</span>
                 </td>
 
                 {/* Day Columns for this Period */}
@@ -475,14 +515,14 @@ function TeacherView() {
                     <td
                       key={day.id}
                       onClick={() => slotInfo && toggleCellSelection(day.id, period, slotInfo)}
-                      className={`p-1 border-l border-slate-100 last:border-l-0 h-13 sm:h-15 relative transition-all align-middle ${
+                      className={`p-1 border-l border-slate-100 last:border-l-0 h-14 relative transition-all align-middle ${
                         slotInfo
                           ? `cursor-pointer ${
                               isSelected 
                                 ? 'bg-indigo-100 ring-2 ring-inset ring-indigo-500 z-10' 
-                                : 'bg-white hover:bg-indigo-50/40'
+                                : 'bg-white active:bg-indigo-50/70'
                             }`
-                          : 'bg-slate-50/20'
+                          : 'bg-slate-50/30'
                       }`}
                     >
                       {slotInfo ? (
@@ -492,14 +532,14 @@ function TeacherView() {
                               <CheckCircle2 size={8} />
                             </div>
                           )}
-                          <span className="text-[9px] font-black text-indigo-600 leading-tight line-clamp-1">
+                          <span className="text-[9px] font-black text-indigo-700 leading-tight line-clamp-1">
                             {slotInfo.subject}
                           </span>
-                          <span className="text-[8px] font-bold text-slate-400 leading-tight line-clamp-1">
+                          <span className="text-[8px] font-bold text-slate-500 leading-tight line-clamp-1">
                             {slotInfo.className}
                           </span>
                           {cellData?.title && (
-                            <span className="text-[7px] text-indigo-900 bg-indigo-50/80 px-1 rounded truncate max-w-full font-medium mt-0.5">
+                            <span className="text-[7px] text-indigo-950 bg-indigo-50 px-1 rounded truncate max-w-full font-bold mt-0.5 border border-indigo-100">
                               {cellData.title}
                             </span>
                           )}
@@ -520,9 +560,9 @@ function TeacherView() {
           <table className="w-full border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-slate-50/50">
-                <th className="p-5 border-b border-slate-100 text-slate-400 font-bold text-xs w-32 text-right">اليوم \ الحصة</th>
+                <th className="p-6 border-b border-slate-100 text-slate-400 font-bold text-xs w-32 text-right">اليوم \ الحصة</th>
                 {PERIODS.map(period => (
-                  <th key={period} className="p-5 border-b border-slate-100 text-slate-900 font-bold text-center text-sm">
+                  <th key={period} className="p-6 border-b border-slate-100 text-slate-900 font-bold text-center">
                     الحصة {period}
                   </th>
                 ))}
@@ -531,7 +571,7 @@ function TeacherView() {
             <tbody>
               {DAYS.map(day => (
                 <tr key={day.id} className="hover:bg-slate-50/30 transition-all group">
-                  <td className="p-4 border-b border-l border-slate-50 text-right font-bold text-indigo-600 bg-slate-50/20 text-sm">
+                  <td className="p-4 border-b border-l border-slate-50 text-right font-bold text-indigo-600 bg-slate-50/20">
                     {day.name}
                   </td>
                   {PERIODS.map(period => {
@@ -543,7 +583,7 @@ function TeacherView() {
                       <td 
                         key={period} 
                         onClick={() => slotInfo && toggleCellSelection(day.id, period, slotInfo)}
-                        className={`p-2 border-b border-slate-50 transition-all relative h-26 ${
+                        className={`p-2 border-b border-slate-50 transition-all relative h-28 ${
                           slotInfo 
                           ? `cursor-pointer ${isSelected ? 'bg-indigo-100 ring-2 ring-inset ring-indigo-500 z-10' : 'hover:bg-indigo-50/50'}` 
                           : 'bg-gray-50/30 opacity-20 cursor-not-allowed'
@@ -563,14 +603,14 @@ function TeacherView() {
                           )}
                           
                           {cellData?.title ? (
-                            <div className="flex-1 bg-indigo-50/50 p-1.5 rounded-xl border border-indigo-100 text-right space-y-0.5">
+                            <div className="flex-1 bg-indigo-50/50 p-2 rounded-xl border border-indigo-100 text-right space-y-0.5">
                               <p className="font-bold text-indigo-900 text-[10px] line-clamp-1">{cellData.title}</p>
                               <p className="text-[8px] text-indigo-400 line-clamp-1">{cellData.objective}</p>
                             </div>
                           ) : slotInfo ? (
                             <div className="flex-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                               <div className="p-1.5 bg-slate-100 rounded-full text-slate-400">
-                                 <Plus size={14} />
+                               <div className="p-2 bg-slate-100 rounded-full text-slate-400">
+                                 <Plus size={16} />
                                </div>
                             </div>
                           ) : null}
@@ -585,9 +625,118 @@ function TeacherView() {
         </div>
       </div>
 
+      {/* 90-Degree Fullscreen Landscape Overlay Mode */}
+      {isLandscapeRotated && (
+        <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-2 overflow-hidden animate-in fade-in duration-200">
+          <div className="w-[96vh] h-[94vw] max-w-none max-h-none transform rotate-90 origin-center bg-white rounded-3xl shadow-2xl p-3 flex flex-col justify-between overflow-hidden border border-slate-200">
+            {/* Header inside landscape modal */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="bg-indigo-600 text-white p-1.5 rounded-xl shadow-xs">
+                  <RotateCw size={14} />
+                </div>
+                <div>
+                  <span className="font-bold text-slate-900 text-xs">{currentTeacher?.name}</span>
+                  <span className="text-[10px] text-indigo-600 font-semibold mr-2">• وضع العرض الأفقي 90°</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedCells.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveCell({
+                      isBulk: true,
+                      day: selectedCells[0].day,
+                      period: selectedCells[0].period,
+                      slotInfo: selectedCells[0].slotInfo
+                    })}
+                    className="bg-indigo-600 text-white px-3 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all"
+                  >
+                    <Send size={12} />
+                    <span>تحضير ({selectedCells.length})</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsLandscapeRotated(false)}
+                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                >
+                  <X size={14} />
+                  <span>إغلاق</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Full 7x5 Table inside rotated container */}
+            <div className="flex-1 overflow-auto mt-2">
+              <table className="w-full h-full border-collapse table-fixed text-center">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="p-1 text-slate-400 font-bold text-[9px] w-16 border-l border-slate-100 text-right">اليوم \ الحصة</th>
+                    {PERIODS.map(period => (
+                      <th key={period} className="p-1 text-indigo-900 font-bold text-[10px] border-l border-slate-100 last:border-l-0">
+                        الحصة {period}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {DAYS.map(day => (
+                    <tr key={day.id} className="border-b border-slate-100 last:border-b-0">
+                      <td className="p-1 border-l border-slate-100 text-right font-bold text-indigo-600 bg-slate-50/50 text-[10px]">
+                        {day.name}
+                      </td>
+                      {PERIODS.map(period => {
+                        const slotInfo = getTeacherSlotInfo(day.id, period);
+                        const cellData = slotInfo ? planData[slotInfo.classId]?.[day.id]?.[period] : null;
+                        const isSelected = selectedCells.some(c => c.day === day.id && c.period === period);
+                        return (
+                          <td
+                            key={period}
+                            onClick={() => slotInfo && toggleCellSelection(day.id, period, slotInfo)}
+                            className={`p-1 border-l border-slate-100 last:border-l-0 relative align-middle transition-all ${
+                              slotInfo
+                                ? `cursor-pointer ${
+                                    isSelected ? 'bg-indigo-100 ring-2 ring-inset ring-indigo-500 z-10' : 'hover:bg-indigo-50/40'
+                                  }`
+                                : 'bg-slate-50/20'
+                            }`}
+                          >
+                            {slotInfo ? (
+                              <div className="flex flex-col items-center justify-center h-full w-full select-none">
+                                {isSelected && (
+                                  <div className="absolute top-0.5 left-0.5 bg-indigo-600 text-white rounded-full p-0.5 shadow-xs">
+                                    <CheckCircle2 size={8} />
+                                  </div>
+                                )}
+                                <span className="text-[9px] font-black text-indigo-600 leading-tight line-clamp-1">
+                                  {slotInfo.subject}
+                                </span>
+                                <span className="text-[8px] font-bold text-slate-400 leading-tight line-clamp-1">
+                                  {slotInfo.className}
+                                </span>
+                                {cellData?.title && (
+                                  <span className="text-[7px] text-indigo-900 bg-indigo-50/90 px-1 rounded truncate max-w-full font-medium mt-0.5">
+                                    {cellData.title}
+                                  </span>
+                                )}
+                              </div>
+                            ) : null}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Floating Action Button for Selection */}
-      {selectedCells.length > 0 && (
-        <div className="fixed bottom-4 right-4 left-4 md:bottom-8 md:right-8 md:left-auto md:w-80 z-40 animate-in slide-in-from-bottom-5">
+      {selectedCells.length > 0 && !isLandscapeRotated && (
+        <div className="fixed bottom-4 right-4 left-4 md:left-auto md:w-80 z-40 animate-in slide-in-from-bottom-6">
           <button 
             type="button"
             onClick={() => setActiveCell({
@@ -596,32 +745,32 @@ function TeacherView() {
               period: selectedCells[0].period,
               slotInfo: selectedCells[0].slotInfo
             })}
-            className="w-full bg-indigo-600 text-white p-3.5 md:p-5 rounded-2xl md:rounded-3xl shadow-2xl flex items-center justify-between group hover:bg-indigo-700 transition-all"
+            className="w-full bg-indigo-600 text-white p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-2xl flex items-center justify-between group hover:bg-indigo-700 transition-all active:scale-95"
           >
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               <div className="bg-white/20 p-2 rounded-xl text-white">
                 <Send size={18} />
               </div>
               <div className="text-right">
-                <p className="font-bold text-sm md:text-base">تحضير الدروس المختارة</p>
-                <p className="text-[11px] md:text-xs opacity-80">تم تحديد {selectedCells.length} حصص</p>
+                <p className="font-bold text-sm sm:text-base">تحضير الدروس المختارة</p>
+                <p className="text-xs opacity-80">تم تحديد {selectedCells.length} حصص</p>
               </div>
             </div>
-            <ChevronRight className="group-hover:translate-x-[-4px] transition-all" size={20} />
+            <ChevronRight className="group-hover:translate-x-[-4px] transition-all" />
           </button>
         </div>
       )}
 
-      {/* Modal / Popup */}
+      {/* Modal / Popup for Lesson Preparation */}
       {activeCell && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg max-h-[92vh] flex flex-col rounded-3xl md:rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-4 md:p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg max-h-[92vh] flex flex-col rounded-3xl sm:rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-4 sm:p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
               <div>
-                <h3 className="text-lg md:text-xl font-bold text-slate-900">
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900">
                   {selectedCells.length > 1 ? 'تحضير جماعي للدروس' : `تحضير الحصة ${activeCell.period}`}
                 </h3>
-                <p className="text-xs md:text-sm text-slate-500 font-medium">
+                <p className="text-xs sm:text-sm text-slate-500 font-medium">
                   {selectedCells.length > 1 ? `سيتم تطبيق التحضير على ${selectedCells.length} حصص` : activeCell.dayName}
                 </p>
               </div>
@@ -634,14 +783,14 @@ function TeacherView() {
               </button>
             </div>
             
-            <div className="p-4 md:p-8 space-y-4 md:space-y-6 overflow-y-auto">
+            <div className="p-4 sm:p-8 space-y-4 sm:space-y-6 overflow-y-auto">
               {/* موضوع الدرس */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:space-y-2">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                  <label className="text-xs font-bold text-slate-500 flex items-center gap-1.5 sm:gap-2">
                     <BookOpen size={14} /> موضوع الدرس
                   </label>
-                  <span className={`text-[10px] md:text-[11px] font-bold ${
+                  <span className={`text-[10px] sm:text-[11px] font-bold ${
                     LIMITS.title - formData.title.length < 0 ? 'text-red-500 font-black' : 'text-slate-400'
                   }`}>
                     {LIMITS.title - formData.title.length < 0 
@@ -654,7 +803,7 @@ function TeacherView() {
                   autoFocus
                   value={formData.title}
                   onChange={(e) => handleFieldChange('title', e.target.value)}
-                  className={`w-full p-3.5 bg-slate-50 rounded-2xl border-2 transition-all font-bold text-slate-700 outline-none text-sm ${
+                  className={`w-full p-3.5 sm:p-4 bg-slate-50 rounded-2xl border-2 transition-all font-bold text-slate-700 outline-none text-sm sm:text-base ${
                     LIMITS.title - formData.title.length < 0 
                       ? 'border-red-300 focus:border-red-500 focus:bg-white' 
                       : 'border-transparent focus:bg-white focus:border-indigo-300'
@@ -664,12 +813,12 @@ function TeacherView() {
               </div>
 
               {/* الأهداف */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:space-y-2">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                  <label className="text-xs font-bold text-slate-500 flex items-center gap-1.5 sm:gap-2">
                     <Target size={14} /> الأهداف
                   </label>
-                  <span className={`text-[10px] md:text-[11px] font-bold ${
+                  <span className={`text-[10px] sm:text-[11px] font-bold ${
                     LIMITS.objective - formData.objective.length < 0 ? 'text-red-500 font-black' : 'text-slate-400'
                   }`}>
                     {LIMITS.objective - formData.objective.length < 0 
@@ -680,7 +829,7 @@ function TeacherView() {
                 <textarea 
                   value={formData.objective}
                   onChange={(e) => handleFieldChange('objective', e.target.value)}
-                  className={`w-full p-3.5 bg-slate-50 rounded-2xl border-2 transition-all text-xs md:text-sm min-h-[85px] outline-none ${
+                  className={`w-full p-3.5 sm:p-4 bg-slate-50 rounded-2xl border-2 transition-all text-xs sm:text-sm min-h-[90px] sm:min-h-[100px] outline-none ${
                     LIMITS.objective - formData.objective.length < 0 
                       ? 'border-red-300 focus:border-red-500 focus:bg-white' 
                       : 'border-transparent focus:bg-white focus:border-indigo-300'
@@ -690,12 +839,12 @@ function TeacherView() {
               </div>
 
               {/* الواجب */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:space-y-2">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                  <label className="text-xs font-bold text-slate-500 flex items-center gap-1.5 sm:gap-2">
                     <Home size={14} /> الواجب
                   </label>
-                  <span className={`text-[10px] md:text-[11px] font-bold ${
+                  <span className={`text-[10px] sm:text-[11px] font-bold ${
                     LIMITS.homework - formData.homework.length < 0 ? 'text-red-500 font-black' : 'text-slate-400'
                   }`}>
                     {LIMITS.homework - formData.homework.length < 0 
@@ -707,7 +856,7 @@ function TeacherView() {
                   type="text"
                   value={formData.homework}
                   onChange={(e) => handleFieldChange('homework', e.target.value)}
-                  className={`w-full p-3.5 bg-slate-50 rounded-2xl border-2 transition-all text-xs md:text-sm outline-none ${
+                  className={`w-full p-3.5 sm:p-4 bg-slate-50 rounded-2xl border-2 transition-all text-xs sm:text-sm outline-none ${
                     LIMITS.homework - formData.homework.length < 0 
                       ? 'border-red-300 focus:border-red-500 focus:bg-white' 
                       : 'border-transparent focus:bg-white focus:border-indigo-300'
@@ -721,7 +870,7 @@ function TeacherView() {
                 onClick={() => {
                   saveCellData(selectedCells, formData);
                 }}
-                className="w-full bg-indigo-600 text-white py-3.5 md:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 text-sm md:text-base mt-2"
+                className="w-full bg-indigo-600 text-white py-3.5 sm:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 text-sm sm:text-base mt-2"
               >
                 <Save size={18} /> حفظ للكل ({selectedCells.length} حصص)
               </button>
@@ -751,6 +900,23 @@ function TeacherView() {
           </div>
         </div>
       )}
+
+      {/* Mobile info hint */}
+      <div className="md:hidden mt-4 p-3 bg-indigo-50/60 rounded-2xl border border-indigo-100 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Smartphone className="text-indigo-600 shrink-0" size={18} />
+          <p className="text-[11px] text-indigo-900 font-bold leading-tight">
+            الجدول معروض بنمط 90° متوافق تماماً مع شاشة الجوال
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsLandscapeRotated(true)}
+          className="text-[10px] font-bold text-indigo-700 bg-white px-2 py-1 rounded-lg border border-indigo-200 shrink-0 hover:bg-indigo-50"
+        >
+          عرض كامل 🔄
+        </button>
+      </div>
     </div>
   );
 }
