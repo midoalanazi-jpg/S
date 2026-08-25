@@ -52,7 +52,7 @@ const AdminView = () => {
   const [showSchoolInfoModal, setShowSchoolInfoModal] = useState(false);
   const [principalName, setPrincipalName] = useState(() => localStorage.getItem('admin_principal_name') || '');
   const [schoolPhone, setSchoolPhone] = useState(currentSchoolPhone);
-  const [schoolName, setSchoolName] = useState(() => localStorage.getItem('admin_school_name') || 'مدرستي');
+  const [schoolName, setSchoolName] = useState(() => localStorage.getItem('admin_school_name') || '');
   const [educationDept, setEducationDept] = useState(() => localStorage.getItem('admin_education_dept') || 'ادارة التعليم');
   const [schoolGender, setSchoolGender] = useState(() => localStorage.getItem('admin_school_gender') || 'boys'); // 'boys' | 'girls'
   const [isSavingSchoolInfo, setIsSavingSchoolInfo] = useState(false);
@@ -755,9 +755,11 @@ const AdminView = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">لوحة تحكم المدير</h1>
-                <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold border border-indigo-100">
-                  {schoolName}
-                </span>
+                {schoolName && schoolName !== 'مدرستي' && (
+                  <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold border border-indigo-100">
+                    {schoolName}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-500 font-medium">إدارة الفصول والمعلمين والخطط — رقم المدرسة: <span className="font-mono text-gray-700 font-bold" dir="ltr">{currentSchoolPhone}</span></p>
             </div>

@@ -82,7 +82,7 @@ function TeacherView() {
       const savedPin = schoolRecord?.admin_pin || localStorage.getItem(`admin_master_pin_${currentSchoolPhone}`) || localStorage.getItem('admin_master_pin') || '';
       setStoredAdminPin(savedPin);
 
-      setSchoolInfo(schoolRecord || { phone: currentSchoolPhone, name: 'مدرستي' });
+      setSchoolInfo(schoolRecord || { phone: currentSchoolPhone, name: '' });
       setClasses(clsData || []);
       setTeachers(tchData || []);
       setTeacherPasswords(passwordsObj || {});
@@ -413,7 +413,9 @@ function TeacherView() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-bold text-slate-800 leading-tight">نصابي</h2>
-                  <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold border border-indigo-100">{schoolInfo?.name || 'مدرستي'}</span>
+                  {schoolInfo?.name && schoolInfo.name !== 'مدرستي' && (
+                    <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold border border-indigo-100">{schoolInfo.name}</span>
+                  )}
                 </div>
                 <p className="text-[11px] text-slate-400 font-medium">الخطط الأسبوعية وجداول الحصص</p>
               </div>
@@ -429,7 +431,9 @@ function TeacherView() {
                   <img src="/logo.png" alt="اللوقو" className="w-full h-full object-contain rounded-xl" />
                 </div>
                 <h1 className="text-2xl font-bold text-slate-900">بوابة المعلم</h1>
-                <p className="text-xs text-indigo-600 font-bold">{schoolInfo?.name || 'مدرستي'}</p>
+                {schoolInfo?.name && schoolInfo.name !== 'مدرستي' && (
+                  <p className="text-xs text-indigo-600 font-bold">{schoolInfo.name}</p>
+                )}
                 <p className="text-[11px] text-slate-400 font-medium">تسجيل الدخول والتحضير الأسبوعي</p>
               </div>
 
