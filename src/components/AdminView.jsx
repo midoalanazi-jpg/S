@@ -838,31 +838,14 @@ const AdminView = () => {
         </div>
       </div>
 
-      {/* شريط بيانات المدرسة والمدير بين الهيدر والقائمة الزرقاء */}
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 sm:p-5 rounded-3xl shadow-sm border border-slate-100 gap-3 print:hidden">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center border border-blue-100 shadow-inner shrink-0">
-            <User size={20} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-800">بيانات المدرسة والمدير</h3>
-              {schoolName && (
-                <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold border border-indigo-100">
-                  {schoolName}
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] text-slate-400 font-medium">اسم المدير، نوع المدرسة، وإدارة التعليم المعتمدة في ترويسة وأسفل الخطط المطبوعة</p>
-          </div>
-        </div>
-
+      {/* زر تعديل بيانات المدرسة */}
+      <div className="flex justify-end print:hidden">
         <button 
           onClick={() => setShowSchoolInfoModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-2xl font-bold text-xs border border-blue-200 shadow-xs transition-all active:scale-95 whitespace-nowrap shrink-0"
+          className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-2xl font-bold text-xs border border-slate-200 shadow-sm transition-all active:scale-95"
           title="تعديل بيانات المدرسة والمدير"
         >
-          <Edit2 size={15} className="text-blue-600" />
+          <User size={16} className="text-blue-600" />
           <span>تعديل بيانات المدرسة</span>
         </button>
       </div>
