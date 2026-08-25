@@ -839,7 +839,7 @@ const AdminView = () => {
       </div>
 
       {/* زر تعديل بيانات المدرسة */}
-      <div className="flex justify-end print:hidden">
+      <div className="flex justify-start print:hidden">
         <button 
           onClick={() => setShowSchoolInfoModal(true)}
           className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-2xl font-bold text-xs border border-slate-200 shadow-sm transition-all active:scale-95"
