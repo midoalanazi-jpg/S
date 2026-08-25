@@ -430,7 +430,7 @@ function TeacherView() {
                 <div className="w-16 h-16 bg-white p-1 rounded-2xl flex items-center justify-center mx-auto shadow-md border border-slate-100">
                   <img src="/logo.png" alt="اللوقو" className="w-full h-full object-contain rounded-xl" />
                 </div>
-                <h1 className="text-2xl font-bold text-slate-900">بوابة المعلم</h1>
+                <h1 className="text-2xl font-bold text-slate-900">{schoolInfo?.settings?.school_gender === 'girls' ? 'بوابة المعلمة' : 'بوابة المعلم'}</h1>
                 {schoolInfo?.name && schoolInfo.name !== 'مدرستي' && (
                   <p className="text-xs text-indigo-600 font-bold">{schoolInfo.name}</p>
                 )}
@@ -441,7 +441,9 @@ function TeacherView() {
               /* Step 1: Select Teacher Name */
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 mb-2 block mr-1">اختر اسمك من القائمة</label>
+                  <label className="text-xs font-bold text-slate-500 mb-2 block mr-1">
+                    {schoolInfo?.settings?.school_gender === 'girls' ? 'اختاري اسمكِ من القائمة' : 'اختر اسمك من القائمة'}
+                  </label>
                   <select 
                     value={selectedTeacherId}
                     onChange={(e) => {
@@ -452,7 +454,7 @@ function TeacherView() {
                     }}
                     className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700 outline-none transition-all"
                   >
-                    <option value="">-- اختر المعلم --</option>
+                    <option value="">{schoolInfo?.settings?.school_gender === 'girls' ? '-- اختاري المعلمة --' : '-- اختر المعلم --'}</option>
                     {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
