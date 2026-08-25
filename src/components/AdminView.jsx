@@ -51,7 +51,7 @@ const AdminView = () => {
   // School & Principal Info State
   const [showSchoolInfoModal, setShowSchoolInfoModal] = useState(false);
   const [principalName, setPrincipalName] = useState(() => localStorage.getItem('admin_principal_name') || '');
-  const [schoolPhone, setSchoolPhone] = useState(currentSchoolPhone);
+  const [schoolPhone, setSchoolPhone] = useState(() => localStorage.getItem('admin_school_contact_phone') || '');
   const [schoolName, setSchoolName] = useState(() => localStorage.getItem('admin_school_name') || '');
   const [educationDept, setEducationDept] = useState(() => localStorage.getItem('admin_education_dept') || 'ادارة التعليم');
   const [schoolGender, setSchoolGender] = useState(() => localStorage.getItem('admin_school_gender') || 'boys'); // 'boys' | 'girls'
@@ -107,7 +107,6 @@ const AdminView = () => {
   // Load data from Supabase
   useEffect(() => {
     localStorage.setItem('active_school_phone', currentSchoolPhone);
-    setSchoolPhone(currentSchoolPhone);
     fetchInitialData();
 
     // Check if user previously chose "لا تسألني مرة أخرى"
@@ -141,6 +140,7 @@ const AdminView = () => {
           if (s.principal_name) setPrincipalName(s.principal_name);
           if (s.education_dept) setEducationDept(s.education_dept);
           if (s.school_gender) setSchoolGender(s.school_gender);
+          if (s.school_contact_phone) setSchoolPhone(s.school_contact_phone);
         }
       }
 
@@ -586,7 +586,7 @@ const AdminView = () => {
     setIsSavingSchoolInfo(true);
     try {
       const { data: currentSchoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
-      
+
       await supabase.from('schools').upsert({
         phone: currentSchoolPhone,
         name: schoolName.trim(),
@@ -594,20 +594,13 @@ const AdminView = () => {
           ...(currentSchoolRecord?.settings || {}),
           principal_name: principalName.trim(),
           education_dept: educationDept.trim(),
-          school_gender: schoolGender
+          school_gender: schoolGender,
+          school_contact_phone: schoolPhone.trim()
         }
       }, { onConflict: 'phone' });
 
-      await supabase.from('settings').upsert([
-        { key: 'principal_name', value: principalName.trim() },
-        { key: 'school_phone', value: schoolPhone.trim() },
-        { key: 'school_name', value: schoolName.trim() },
-        { key: 'education_dept', value: educationDept.trim() },
-        { key: 'school_gender', value: schoolGender }
-      ]);
-
       localStorage.setItem('admin_principal_name', principalName.trim());
-      localStorage.setItem('admin_school_phone', schoolPhone.trim());
+      localStorage.setItem('admin_school_contact_phone', schoolPhone.trim());
       localStorage.setItem('admin_school_name', schoolName.trim());
       localStorage.setItem('admin_education_dept', educationDept.trim());
       localStorage.setItem('admin_school_gender', schoolGender);
@@ -2140,13 +2133,13 @@ const AdminView = () => {
               {/* جوال المدرسة */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 block mr-1">
-                  جوال المدرسة:
+                  جوال / هاتف المدرسة (اختياري):
                 </label>
                 <input
                   type="text"
                   value={schoolPhone}
                   onChange={(e) => setSchoolPhone(e.target.value)}
-                  placeholder="مثال: 05xxxxxxxx"
+                  placeholder="اختياري - هاتف المدرسة الرسمي"
                   className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all text-left"
                   dir="ltr"
                 />
