@@ -745,51 +745,48 @@ const AdminView = () => {
       <div className={`sticky top-3 z-40 transition-all duration-300 transform ${
         showHeader ? 'translate-y-0 opacity-100' : '-translate-y-28 opacity-0 pointer-events-none'
       } print:hidden`}>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white/95 backdrop-blur-md p-4 sm:p-5 rounded-3xl shadow-lg border border-slate-100 gap-4">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center bg-white/95 backdrop-blur-md p-4 sm:p-5 rounded-3xl shadow-lg border border-slate-100 gap-4">
+          
+          {/* الجانب الأيمن: الشعار واسم المدرسة والبيانات */}
+          <div className="flex items-center gap-3 shrink-0">
             <img 
               src="/logo.png" 
               alt="شعار نصابي" 
               className="w-12 h-12 object-contain rounded-2xl shadow-xs shrink-0 bg-white p-0.5 border border-slate-100" 
             />
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">لوحة تحكم المدير</h1>
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-tight">لوحة تحكم المدير</h1>
                 {schoolName && schoolName !== 'مدرستي' && (
-                  <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold border border-indigo-100">
+                  <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold border border-indigo-100 whitespace-nowrap">
                     {schoolName}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-gray-500 font-medium">إدارة الفصول والمعلمين والخطط — رقم المدرسة: <span className="font-mono text-gray-700 font-bold" dir="ltr">{currentSchoolPhone}</span></p>
+              <p className="text-[11px] text-gray-500 font-medium whitespace-nowrap">
+                إدارة الخطط والجداول — <span className="text-gray-400">رقم المدرسة:</span> <span className="font-mono text-gray-700 font-bold" dir="ltr">{currentSchoolPhone}</span>
+              </p>
             </div>
-            <button 
-              onClick={() => setShowSchoolInfoModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 text-blue-800 hover:bg-blue-100 rounded-2xl font-bold text-xs border border-blue-200 shadow-sm transition-all active:scale-95 mr-1"
-              title="تعديل بيانات المدرسة والمدير"
-            >
-              <User size={15} className="text-blue-600" />
-              <span>بيانات المدرسة</span>
-            </button>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* زر مشاركة رابط المعلمين عبر الواتساب */}
+          {/* الجانب الأيسر: الأزرار منظمة ومقسمة بشكل مريح */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-start lg:justify-end overflow-x-auto pb-1 sm:pb-0">
+            
+            {/* 1. مشاركة الرابط للمعلمين */}
             <button 
               onClick={() => {
                 const url = `${window.location.origin}/s/${currentSchoolPhone}`;
                 const text = `السلام عليكم ورحمة الله وبركاته،\nالزملاء المعلمون، هذا رابط منصة الخطة الأسبوعية لمدرستنا:\n${url}\n\nيرجى الدخول وتعبئة الخطة الأسبوعية.`;
                 window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
               }}
-              className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs shadow-md shadow-emerald-100 transition-all active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs shadow-sm shadow-emerald-100 transition-all active:scale-95 whitespace-nowrap"
               title="إرسال رابط المدرسة لمعلميك عبر الواتساب"
             >
-              <Share2 size={16} />
-              <span className="hidden sm:inline">مشاركة الرابط (WhatsApp)</span>
-              <span className="sm:hidden">واتساب</span>
+              <Share2 size={15} />
+              <span>مشاركة واتساب</span>
             </button>
 
-            {/* زر نسخ رابط المعلمين */}
+            {/* 2. نسخ الرابط */}
             <button 
               onClick={() => {
                 const url = `${window.location.origin}/s/${currentSchoolPhone}`;
@@ -797,24 +794,37 @@ const AdminView = () => {
                 setCopiedLink(true);
                 setTimeout(() => setCopiedLink(false), 2000);
               }}
-              className="flex items-center gap-2 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs border border-slate-200 shadow-xs transition-all active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs border border-slate-200/80 shadow-xs transition-all active:scale-95 whitespace-nowrap"
               title="نسخ رابط المعلمين"
             >
-              {copiedLink ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
+              {copiedLink ? <Check size={15} className="text-emerald-600" /> : <Copy size={15} />}
               <span>{copiedLink ? 'تم النسخ!' : 'نسخ الرابط'}</span>
             </button>
 
-            {/* زر العودة للشاشة الرئيسية */}
-            <Link
-              to={currentSchoolPhone ? `/s/${currentSchoolPhone}` : '/'}
-              className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 rounded-2xl font-bold text-xs border border-slate-200/80 shadow-xs transition-all active:scale-95"
-              title="العودة للشاشة الرئيسية (بوابة المعلم)"
-            >
-              <Home size={16} className="text-slate-600" />
-              <span>الرئيسية</span>
-            </Link>
+            {/* فاصل رأسي خفيف */}
+            <div className="hidden sm:block w-[1px] h-6 bg-slate-200 mx-0.5 shrink-0"></div>
 
-            {/* زر استيراد جدول نصابي */}
+            {/* 3. بيانات المدرسة */}
+            <button 
+              onClick={() => setShowSchoolInfoModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-2xl font-bold text-xs border border-blue-200/80 shadow-xs transition-all active:scale-95 whitespace-nowrap"
+              title="تعديل بيانات المدرسة والمدير"
+            >
+              <User size={15} className="text-blue-600" />
+              <span>بيانات المدرسة</span>
+            </button>
+
+            {/* 4. كلمات السر */}
+            <button 
+              onClick={() => setShowPasswordsModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-2xl font-bold text-xs border border-amber-200/80 shadow-xs transition-all active:scale-95 whitespace-nowrap"
+              title="كلمات سر المعلمين والرمز السري"
+            >
+              <KeyRound size={15} className="text-amber-600" />
+              <span>كلمات السر</span>
+            </button>
+
+            {/* 5. استيراد جدول نصابي */}
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -824,21 +834,23 @@ const AdminView = () => {
             />
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-800 hover:bg-blue-100 rounded-2xl font-bold text-xs border border-blue-200 shadow-sm transition-all active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-2xl font-bold text-xs border border-indigo-200/80 shadow-xs transition-all active:scale-95 whitespace-nowrap"
               title="استيراد جدول نصابي"
             >
-              <Upload size={16} className="text-blue-600" />
+              <Upload size={15} className="text-indigo-600" />
               <span>استيراد جدول</span>
             </button>
 
-            <button 
-              onClick={() => setShowPasswordsModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-800 hover:bg-amber-100 rounded-2xl font-bold text-xs border border-amber-200 shadow-sm transition-all active:scale-95"
-              title="كلمات سر المعلمين"
+            {/* 6. الرئيسية */}
+            <Link
+              to={currentSchoolPhone ? `/s/${currentSchoolPhone}` : '/'}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 rounded-2xl font-bold text-xs border border-slate-200/80 shadow-xs transition-all active:scale-95 whitespace-nowrap"
+              title="العودة للشاشة الرئيسية (بوابة المعلم)"
             >
-              <KeyRound size={16} className="text-amber-600" />
-              <span>كلمات السر</span>
-            </button>
+              <Home size={15} className="text-slate-600" />
+              <span>الرئيسية</span>
+            </Link>
+
           </div>
         </div>
       </div>
