@@ -797,17 +797,7 @@ const AdminView = () => {
             {/* فاصل رأسي خفيف */}
             <div className="hidden sm:block w-[1px] h-6 bg-slate-200 mx-0.5 shrink-0"></div>
 
-            {/* 3. بيانات المدرسة */}
-            <button 
-              onClick={() => setShowSchoolInfoModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-2xl font-bold text-xs border border-blue-200/80 shadow-xs transition-all active:scale-95 whitespace-nowrap"
-              title="تعديل بيانات المدرسة والمدير"
-            >
-              <User size={15} className="text-blue-600" />
-              <span>بيانات المدرسة</span>
-            </button>
-
-            {/* 4. كلمات السر */}
+            {/* 3. كلمات السر */}
             <button 
               onClick={() => setShowPasswordsModal(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-2xl font-bold text-xs border border-amber-200/80 shadow-xs transition-all active:scale-95 whitespace-nowrap"
@@ -817,7 +807,7 @@ const AdminView = () => {
               <span>كلمات السر</span>
             </button>
 
-            {/* 5. استيراد جدول نصابي */}
+            {/* 4. استيراد جدول نصابي */}
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -834,7 +824,7 @@ const AdminView = () => {
               <span>استيراد جدول</span>
             </button>
 
-            {/* 6. الرئيسية */}
+            {/* 5. الرئيسية */}
             <Link
               to={currentSchoolPhone ? `/s/${currentSchoolPhone}` : '/'}
               className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 rounded-2xl font-bold text-xs border border-slate-200/80 shadow-xs transition-all active:scale-95 whitespace-nowrap"
@@ -846,6 +836,35 @@ const AdminView = () => {
 
           </div>
         </div>
+      </div>
+
+      {/* شريط بيانات المدرسة والمدير بين الهيدر والقائمة الزرقاء */}
+      <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 sm:p-5 rounded-3xl shadow-sm border border-slate-100 gap-3 print:hidden">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center border border-blue-100 shadow-inner shrink-0">
+            <User size={20} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-800">بيانات المدرسة والمدير</h3>
+              {schoolName && (
+                <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold border border-indigo-100">
+                  {schoolName}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium">اسم المدير، نوع المدرسة، وإدارة التعليم المعتمدة في ترويسة وأسفل الخطط المطبوعة</p>
+          </div>
+        </div>
+
+        <button 
+          onClick={() => setShowSchoolInfoModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-2xl font-bold text-xs border border-blue-200 shadow-xs transition-all active:scale-95 whitespace-nowrap shrink-0"
+          title="تعديل بيانات المدرسة والمدير"
+        >
+          <Edit2 size={15} className="text-blue-600" />
+          <span>تعديل بيانات المدرسة</span>
+        </button>
       </div>
 
       {/* Export Selection Section */}
