@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { 
   Plus, Trash2, Save, Download, Upload,
   User, Users, ChevronRight, FileText, CheckCircle2,
   Calendar, X, Layout, KeyRound, Lock, Eye, EyeOff, ShieldCheck, Search, Edit2, RotateCcw,
-  Star, Bookmark, Smartphone, Monitor, Check, Sparkles, RefreshCw, Home
+  Star, Bookmark, Smartphone, Monitor, Check, Sparkles, RefreshCw, Home, Share2, Copy, School
 } from 'lucide-react';
 import HijriDatePicker from '@mk01/react-hijri-date-picker';
 
@@ -27,6 +27,9 @@ const SUBJECTS = [
 ];
 
 const AdminView = () => {
+  const { schoolPhone: urlPhone } = useParams();
+  const currentSchoolPhone = urlPhone || localStorage.getItem('active_school_phone') || '0555279721';
+
   const [classes, setClasses] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [newClassName, setNewClassName] = useState('');
@@ -43,13 +46,14 @@ const AdminView = () => {
   const [assigningLeaderClass, setAssigningLeaderClass] = useState(null);
   const [selectedLeaderTeacherId, setSelectedLeaderTeacherId] = useState('');
   const [isSavingLeader, setIsSavingLeader] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // School & Principal Info State
   const [showSchoolInfoModal, setShowSchoolInfoModal] = useState(false);
   const [principalName, setPrincipalName] = useState(() => localStorage.getItem('admin_principal_name') || '');
-  const [schoolPhone, setSchoolPhone] = useState(() => localStorage.getItem('admin_school_phone') || '');
-  const [schoolName, setSchoolName] = useState(() => localStorage.getItem('admin_school_name') || 'مدرسة سمرة بن عمرو الابتدائية');
-  const [educationDept, setEducationDept] = useState(() => localStorage.getItem('admin_education_dept') || 'ادارة التعليم بمحافظة حفر الباطن');
+  const [schoolPhone, setSchoolPhone] = useState(currentSchoolPhone);
+  const [schoolName, setSchoolName] = useState(() => localStorage.getItem('admin_school_name') || 'مدرستي');
+  const [educationDept, setEducationDept] = useState(() => localStorage.getItem('admin_education_dept') || 'ادارة التعليم');
   const [schoolGender, setSchoolGender] = useState(() => localStorage.getItem('admin_school_gender') || 'boys'); // 'boys' | 'girls'
   const [isSavingSchoolInfo, setIsSavingSchoolInfo] = useState(false);
 
@@ -102,6 +106,8 @@ const AdminView = () => {
 
   // Load data from Supabase
   useEffect(() => {
+    localStorage.setItem('active_school_phone', currentSchoolPhone);
+    setSchoolPhone(currentSchoolPhone);
     fetchInitialData();
 
     // Check if user previously chose "لا تسألني مرة أخرى"
@@ -112,24 +118,37 @@ const AdminView = () => {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [currentSchoolPhone]);
 
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      const { data: clsData } = await supabase.from('classes').select('*').order('created_at');
-      const { data: tchData } = await supabase.from('teachers').select('*').order('created_at');
-      const { data: plansData } = await supabase.from('weekly_plans').select('*');
+      const { data: clsData } = await supabase.from('classes').select('*').eq('school_phone', currentSchoolPhone).order('created_at');
+      const { data: tchData } = await supabase.from('teachers').select('*').eq('school_phone', currentSchoolPhone).order('created_at');
+      const { data: plansData } = await supabase.from('weekly_plans').select('*').eq('school_phone', currentSchoolPhone);
+      const { data: schoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
       const { data: allSettings } = await supabase.from('settings').select('*');
 
       let passwordsObj = {};
       let savedPin = '';
 
+      if (schoolRecord) {
+        if (schoolRecord.name) setSchoolName(schoolRecord.name);
+        if (schoolRecord.admin_pin) savedPin = schoolRecord.admin_pin;
+        if (schoolRecord.settings) {
+          const s = schoolRecord.settings;
+          if (s.teacher_passwords) passwordsObj = s.teacher_passwords;
+          if (s.principal_name) setPrincipalName(s.principal_name);
+          if (s.education_dept) setEducationDept(s.education_dept);
+          if (s.school_gender) setSchoolGender(s.school_gender);
+        }
+      }
+
       if (allSettings && allSettings.length > 0) {
         const settingsMap = {};
         allSettings.forEach(s => { settingsMap[s.key] = s.value; });
 
-        if (settingsMap.teacher_passwords) {
+        if (!Object.keys(passwordsObj).length && settingsMap.teacher_passwords) {
           try {
             passwordsObj = typeof settingsMap.teacher_passwords === 'string' 
               ? JSON.parse(settingsMap.teacher_passwords) 
@@ -139,38 +158,17 @@ const AdminView = () => {
           }
         }
 
-        if (settingsMap.admin_pin) {
+        if (!savedPin && settingsMap.admin_pin) {
           savedPin = settingsMap.admin_pin;
         }
 
-        if (settingsMap.principal_name !== undefined) {
-          setPrincipalName(settingsMap.principal_name || '');
-          localStorage.setItem('admin_principal_name', settingsMap.principal_name || '');
-        }
-
-        if (settingsMap.school_phone !== undefined) {
-          setSchoolPhone(settingsMap.school_phone || '');
-          localStorage.setItem('admin_school_phone', settingsMap.school_phone || '');
-        }
-
-        if (settingsMap.school_name !== undefined) {
-          setSchoolName(settingsMap.school_name || '');
-          localStorage.setItem('admin_school_name', settingsMap.school_name || '');
-        }
-
-        if (settingsMap.education_dept !== undefined) {
-          setEducationDept(settingsMap.education_dept || '');
-          localStorage.setItem('admin_education_dept', settingsMap.education_dept || '');
-        }
-
-        if (settingsMap.school_gender !== undefined) {
-          setSchoolGender(settingsMap.school_gender || 'boys');
-          localStorage.setItem('admin_school_gender', settingsMap.school_gender || 'boys');
+        if (!schoolRecord?.name && settingsMap.school_name) {
+          setSchoolName(settingsMap.school_name);
         }
       }
 
       if (!savedPin) {
-        savedPin = localStorage.getItem('admin_master_pin') || '';
+        savedPin = localStorage.getItem(`admin_master_pin_${currentSchoolPhone}`) || localStorage.getItem('admin_master_pin') || '';
       }
       setStoredAdminPin(savedPin);
 
@@ -219,7 +217,7 @@ const AdminView = () => {
     if (!importPreviewData) return;
     setIsImporting(true);
     try {
-      await importNessabyDataToSupabase(importPreviewData, importMode === 'replace');
+      await importNessabyDataToSupabase(importPreviewData, importMode === 'replace', currentSchoolPhone);
       setImportPreviewData(null);
       await fetchInitialData();
       alert('✅ تم استيراد الجداول والفصول والمعلمين وإسنادات المواد بنجاح!');
@@ -261,10 +259,17 @@ const AdminView = () => {
     }
 
     try {
+      await supabase.from('schools').upsert({
+        phone: currentSchoolPhone,
+        admin_pin: pin
+      }, { onConflict: 'phone' });
+
       await supabase.from('settings').upsert({
         key: 'admin_pin',
         value: pin
       });
+
+      localStorage.setItem(`admin_master_pin_${currentSchoolPhone}`, pin);
       localStorage.setItem('admin_master_pin', pin);
       setStoredAdminPin(pin);
       setFailedPinAttempts(0);
@@ -303,6 +308,11 @@ const AdminView = () => {
 
       if (nextAttempts >= 10) {
         try {
+          await supabase.from('schools').upsert({
+            phone: currentSchoolPhone,
+            admin_pin: ''
+          }, { onConflict: 'phone' });
+
           await supabase.from('settings').upsert({
             key: 'admin_pin',
             value: ''
@@ -310,6 +320,7 @@ const AdminView = () => {
         } catch (err) {
           console.error('Error resetting admin pin:', err);
         }
+        localStorage.removeItem(`admin_master_pin_${currentSchoolPhone}`);
         localStorage.removeItem('admin_master_pin');
         setStoredAdminPin('');
         setFailedPinAttempts(0);
@@ -332,6 +343,13 @@ const AdminView = () => {
     }
     try {
       const updated = { ...teacherPasswords, [teacherId]: newPwd.trim() };
+
+      const { data: schoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
+      await supabase.from('schools').upsert({
+        phone: currentSchoolPhone,
+        settings: { ...(schoolRecord?.settings || {}), teacher_passwords: updated }
+      }, { onConflict: 'phone' });
+
       await supabase.from('settings').upsert({
         key: 'teacher_passwords',
         value: JSON.stringify(updated)
@@ -359,6 +377,13 @@ const AdminView = () => {
     try {
       const updated = { ...teacherPasswords };
       delete updated[teacherId];
+
+      const { data: schoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
+      await supabase.from('schools').upsert({
+        phone: currentSchoolPhone,
+        settings: { ...(schoolRecord?.settings || {}), teacher_passwords: updated }
+      }, { onConflict: 'phone' });
+
       await supabase.from('settings').upsert({
         key: 'teacher_passwords',
         value: JSON.stringify(updated)
@@ -384,7 +409,7 @@ const AdminView = () => {
     try {
       const { data, error } = await supabase
         .from('classes')
-        .insert([{ name: newClassName, schedule: {} }])
+        .insert([{ name: newClassName.trim(), schedule: {}, school_phone: currentSchoolPhone }])
         .select();
       
       if (error) {
@@ -414,9 +439,10 @@ const AdminView = () => {
       const { data, error } = await supabase
         .from('teachers')
         .insert([{ 
-          name: newTeacherName, 
+          name: newTeacherName.trim(), 
           assignments: teacherAssignments,
-          leader_of: teacherLeaderships
+          leader_of: teacherLeaderships,
+          school_phone: currentSchoolPhone
         }])
         .select();
       
@@ -559,15 +585,26 @@ const AdminView = () => {
     if (e) e.preventDefault();
     setIsSavingSchoolInfo(true);
     try {
-      const { error } = await supabase.from('settings').upsert([
+      const { data: currentSchoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
+      
+      await supabase.from('schools').upsert({
+        phone: currentSchoolPhone,
+        name: schoolName.trim(),
+        settings: {
+          ...(currentSchoolRecord?.settings || {}),
+          principal_name: principalName.trim(),
+          education_dept: educationDept.trim(),
+          school_gender: schoolGender
+        }
+      }, { onConflict: 'phone' });
+
+      await supabase.from('settings').upsert([
         { key: 'principal_name', value: principalName.trim() },
         { key: 'school_phone', value: schoolPhone.trim() },
         { key: 'school_name', value: schoolName.trim() },
         { key: 'education_dept', value: educationDept.trim() },
         { key: 'school_gender', value: schoolGender }
       ]);
-
-      if (error) throw error;
 
       localStorage.setItem('admin_principal_name', principalName.trim());
       localStorage.setItem('admin_school_phone', schoolPhone.trim());
@@ -716,8 +753,13 @@ const AdminView = () => {
               className="w-12 h-12 object-contain rounded-2xl shadow-xs shrink-0 bg-white p-0.5 border border-slate-100" 
             />
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">لوحة تحكم المدير</h1>
-              <p className="text-xs text-gray-500 font-medium">إدارة الفصول والمعلمين والخطط</p>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">لوحة تحكم المدير</h1>
+                <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold border border-indigo-100">
+                  {schoolName}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 font-medium">إدارة الفصول والمعلمين والخطط — رقم المدرسة: <span className="font-mono text-gray-700 font-bold" dir="ltr">{currentSchoolPhone}</span></p>
             </div>
             <button 
               onClick={() => setShowSchoolInfoModal(true)}
@@ -730,14 +772,44 @@ const AdminView = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* زر مشاركة رابط المعلمين عبر الواتساب */}
+            <button 
+              onClick={() => {
+                const url = `${window.location.origin}/s/${currentSchoolPhone}`;
+                const text = `السلام عليكم ورحمة الله وبركاته،\nالزملاء المعلمون، هذا رابط منصة الخطة الأسبوعية لمدرستنا:\n${url}\n\nيرجى الدخول وتعبئة الخطة الأسبوعية.`;
+                window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+              }}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs shadow-md shadow-emerald-100 transition-all active:scale-95"
+              title="إرسال رابط المدرسة لمعلميك عبر الواتساب"
+            >
+              <Share2 size={16} />
+              <span className="hidden sm:inline">مشاركة الرابط (WhatsApp)</span>
+              <span className="sm:hidden">واتساب</span>
+            </button>
+
+            {/* زر نسخ رابط المعلمين */}
+            <button 
+              onClick={() => {
+                const url = `${window.location.origin}/s/${currentSchoolPhone}`;
+                navigator.clipboard.writeText(url);
+                setCopiedLink(true);
+                setTimeout(() => setCopiedLink(false), 2000);
+              }}
+              className="flex items-center gap-2 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs border border-slate-200 shadow-xs transition-all active:scale-95"
+              title="نسخ رابط المعلمين"
+            >
+              {copiedLink ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
+              <span>{copiedLink ? 'تم النسخ!' : 'نسخ الرابط'}</span>
+            </button>
+
             {/* زر العودة للشاشة الرئيسية */}
             <Link
-              to="/"
+              to={currentSchoolPhone ? `/s/${currentSchoolPhone}` : '/'}
               className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 rounded-2xl font-bold text-xs border border-slate-200/80 shadow-xs transition-all active:scale-95"
               title="العودة للشاشة الرئيسية (بوابة المعلم)"
             >
               <Home size={16} className="text-slate-600" />
-              <span>العودة للرئيسية</span>
+              <span>الرئيسية</span>
             </Link>
 
             {/* زر استيراد جدول نصابي */}
@@ -750,11 +822,11 @@ const AdminView = () => {
             />
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 rounded-2xl font-bold text-xs border border-emerald-200 shadow-sm transition-all active:scale-95"
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-800 hover:bg-blue-100 rounded-2xl font-bold text-xs border border-blue-200 shadow-sm transition-all active:scale-95"
               title="استيراد جدول نصابي"
             >
-              <Upload size={16} className="text-emerald-600" />
-              <span>استيراد جدول نصابي</span>
+              <Upload size={16} className="text-blue-600" />
+              <span>استيراد جدول</span>
             </button>
 
             <button 
@@ -763,7 +835,7 @@ const AdminView = () => {
               title="كلمات سر المعلمين"
             >
               <KeyRound size={16} className="text-amber-600" />
-              <span>كلمات سر المعلمين</span>
+              <span>كلمات السر</span>
             </button>
           </div>
         </div>

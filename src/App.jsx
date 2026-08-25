@@ -1,8 +1,7 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import TeacherView from './components/TeacherView';
 import AdminView from './components/AdminView';
-import { LayoutDashboard, GraduationCap } from 'lucide-react';
 
 function App() {
   return (
@@ -11,6 +10,8 @@ function App() {
         <Routes>
           <Route path="/" element={<TeacherView />} />
           <Route path="/admin" element={<AdminView />} />
+          <Route path="/s/:schoolPhone" element={<TeacherView />} />
+          <Route path="/s/:schoolPhone/admin" element={<AdminView />} />
         </Routes>
       </div>
     </Router>
@@ -18,3 +19,4 @@ function App() {
 }
 
 export default App;
+

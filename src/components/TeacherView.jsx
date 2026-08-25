@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Send, User, Users, Calendar, 
   BookOpen, Target, Home, StickyNote,
   AlertCircle, X, Save, Plus, CheckCircle2, ChevronRight,
   Lock, KeyRound, Eye, EyeOff, ShieldCheck, RotateCw, Smartphone, Maximize2, Minimize2,
-  LayoutDashboard
+  LayoutDashboard, School
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -21,6 +21,10 @@ const PERIODS = [1, 2, 3, 4, 5, 6, 7];
 
 function TeacherView() {
   const navigate = useNavigate();
+  const { schoolPhone: urlPhone } = useParams();
+  const currentSchoolPhone = urlPhone || localStorage.getItem('active_school_phone') || '0555279721';
+
+  const [schoolInfo, setSchoolInfo] = useState(null);
   const [teachers, setTeachers] = useState([]);
   const [classes, setClasses] = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
@@ -50,29 +54,35 @@ function TeacherView() {
 
   // Load metadata from Supabase
   useEffect(() => {
+    localStorage.setItem('active_school_phone', currentSchoolPhone);
     fetchInitialData();
-  }, []);
+  }, [currentSchoolPhone]);
 
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      const { data: clsData } = await supabase.from('classes').select('*');
-      const { data: tchData } = await supabase.from('teachers').select('*');
-      const { data: pwdSetting } = await supabase.from('settings').select('*').eq('key', 'teacher_passwords').maybeSingle();
-      const { data: pinSetting } = await supabase.from('settings').select('*').eq('key', 'admin_pin').maybeSingle();
+      const { data: clsData } = await supabase.from('classes').select('*').eq('school_phone', currentSchoolPhone);
+      const { data: tchData } = await supabase.from('teachers').select('*').eq('school_phone', currentSchoolPhone);
+      const { data: schoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
 
       let passwordsObj = {};
-      if (pwdSetting && pwdSetting.value) {
-        try {
-          passwordsObj = typeof pwdSetting.value === 'string' ? JSON.parse(pwdSetting.value) : pwdSetting.value;
-        } catch (e) {
-          console.error('Error parsing teacher passwords:', e);
+      if (schoolRecord && schoolRecord.settings && schoolRecord.settings.teacher_passwords) {
+        passwordsObj = schoolRecord.settings.teacher_passwords;
+      } else {
+        const { data: pwdSetting } = await supabase.from('settings').select('*').eq('key', 'teacher_passwords').maybeSingle();
+        if (pwdSetting && pwdSetting.value) {
+          try {
+            passwordsObj = typeof pwdSetting.value === 'string' ? JSON.parse(pwdSetting.value) : pwdSetting.value;
+          } catch (e) {
+            console.error('Error parsing teacher passwords:', e);
+          }
         }
       }
 
-      const savedPin = pinSetting?.value || localStorage.getItem('admin_master_pin') || '';
+      const savedPin = schoolRecord?.admin_pin || localStorage.getItem(`admin_master_pin_${currentSchoolPhone}`) || localStorage.getItem('admin_master_pin') || '';
       setStoredAdminPin(savedPin);
 
+      setSchoolInfo(schoolRecord || { phone: currentSchoolPhone, name: 'مدرستي' });
       setClasses(clsData || []);
       setTeachers(tchData || []);
       setTeacherPasswords(passwordsObj || {});
@@ -163,6 +173,7 @@ function TeacherView() {
 
         // Upsert to Supabase
         await supabase.from('weekly_plans').upsert({
+          school_phone: currentSchoolPhone,
           teacher_id: selectedTeacherId,
           class_id: classId,
           week_data: updatedDrafts[classId]
@@ -228,6 +239,12 @@ function TeacherView() {
     setLoginError('');
     try {
       const updatedPasswords = { ...teacherPasswords, [selectedTeacherId]: newPassword.trim() };
+      
+      await supabase.from('schools').upsert({
+        phone: currentSchoolPhone,
+        settings: { ...(schoolInfo?.settings || {}), teacher_passwords: updatedPasswords }
+      }, { onConflict: 'phone' });
+
       await supabase.from('settings').upsert({
         key: 'teacher_passwords',
         value: JSON.stringify(updatedPasswords)
@@ -294,7 +311,7 @@ function TeacherView() {
       setAdminPinError('');
       setAdminPinInput('');
       sessionStorage.setItem('admin_authenticated', 'true');
-      navigate('/admin');
+      navigate(currentSchoolPhone ? `/s/${currentSchoolPhone}/admin` : '/admin');
     } else {
       const nextAttempts = failedAdminAttempts + 1;
       setFailedAdminAttempts(nextAttempts);
@@ -302,6 +319,11 @@ function TeacherView() {
       if (nextAttempts >= 10) {
         // مسح كلمة المرور بالكامل بعد 10 محاولات خاطئة
         try {
+          await supabase.from('schools').upsert({
+            phone: currentSchoolPhone,
+            admin_pin: ''
+          }, { onConflict: 'phone' });
+
           await supabase.from('settings').upsert({
             key: 'admin_pin',
             value: ''
@@ -309,6 +331,7 @@ function TeacherView() {
         } catch (err) {
           console.error('Error resetting admin pin:', err);
         }
+        localStorage.removeItem(`admin_master_pin_${currentSchoolPhone}`);
         localStorage.removeItem('admin_master_pin');
         setStoredAdminPin('');
         setFailedAdminAttempts(0);
@@ -341,10 +364,17 @@ function TeacherView() {
     }
 
     try {
+      await supabase.from('schools').upsert({
+        phone: currentSchoolPhone,
+        admin_pin: pin
+      }, { onConflict: 'phone' });
+
       await supabase.from('settings').upsert({
         key: 'admin_pin',
         value: pin
       });
+
+      localStorage.setItem(`admin_master_pin_${currentSchoolPhone}`, pin);
       localStorage.setItem('admin_master_pin', pin);
       setStoredAdminPin(pin);
       setFailedAdminAttempts(0);
@@ -356,7 +386,7 @@ function TeacherView() {
       setAdminPinError('');
       sessionStorage.setItem('admin_authenticated', 'true');
       alert('✅ تم ضبط كلمة مرور الإدارة بنجاح والدخول للوحة الإدارة');
-      navigate('/admin');
+      navigate(currentSchoolPhone ? `/s/${currentSchoolPhone}/admin` : '/admin');
     } catch (err) {
       console.error('Error saving admin pin:', err);
       setAdminPinError('حدث خطأ أثناء حفظ كلمة المرور');
@@ -381,7 +411,10 @@ function TeacherView() {
                 className="w-10 h-10 object-contain rounded-xl shadow-xs" 
               />
               <div>
-                <h2 className="text-sm font-bold text-slate-800 leading-tight">نصابي</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-slate-800 leading-tight">نصابي</h2>
+                  <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold border border-indigo-100">{schoolInfo?.name || 'مدرستي'}</span>
+                </div>
                 <p className="text-[11px] text-slate-400 font-medium">الخطط الأسبوعية وجداول الحصص</p>
               </div>
             </div>
@@ -391,12 +424,13 @@ function TeacherView() {
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
             <div className="bg-white p-8 rounded-[2.5rem] shadow-xl w-full border border-slate-100 space-y-6 animate-in fade-in">
-              <div className="text-center space-y-2">
+              <div className="text-center space-y-1.5">
                 <div className="w-16 h-16 bg-white p-1 rounded-2xl flex items-center justify-center mx-auto shadow-md border border-slate-100">
                   <img src="/logo.png" alt="اللوقو" className="w-full h-full object-contain rounded-xl" />
                 </div>
                 <h1 className="text-2xl font-bold text-slate-900">بوابة المعلم</h1>
-                <p className="text-xs text-slate-400 font-medium">تسجيل الدخول والتحضير الأسبوعي</p>
+                <p className="text-xs text-indigo-600 font-bold">{schoolInfo?.name || 'مدرستي'}</p>
+                <p className="text-[11px] text-slate-400 font-medium">تسجيل الدخول والتحضير الأسبوعي</p>
               </div>
 
             {!selectedTeacherId ? (
