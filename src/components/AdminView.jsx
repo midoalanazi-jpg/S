@@ -43,6 +43,7 @@ const AdminView = () => {
   const [isBulkExport, setIsBulkExport] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [managementModalTab, setManagementModalTab] = useState(null); // 'classes' | 'teachers' | null
+  const [showManualScheduleModal, setShowManualScheduleModal] = useState(false);
   const [assigningLeaderClass, setAssigningLeaderClass] = useState(null);
   const [selectedLeaderTeacherId, setSelectedLeaderTeacherId] = useState('');
   const [isSavingLeader, setIsSavingLeader] = useState(false);
@@ -968,23 +969,23 @@ const AdminView = () => {
                 <div className="flex bg-gray-200/70 p-1 rounded-2xl">
                   <button
                     onClick={() => setManagementModalTab('classes')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
                       managementModalTab === 'classes'
                         ? 'bg-white text-blue-600 shadow-sm'
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    <Users size={16} /> إدارة الفصول ({classes.length})
+                    <Users size={16} /> الفصول وريادة الصف ({classes.length})
                   </button>
                   <button
                     onClick={() => setManagementModalTab('teachers')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
                       managementModalTab === 'teachers'
                         ? 'bg-white text-indigo-600 shadow-sm'
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    <User size={16} /> إدارة المعلمين ({teachers.length})
+                    <User size={16} /> المعلمون وإسناد المواد ({teachers.length})
                   </button>
                 </div>
               </div>
@@ -2191,36 +2192,153 @@ const AdminView = () => {
         </div>
       )}
 
+      {/* Manual Schedule Selector Modal */}
+      {showManualScheduleModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in duration-200" dir="rtl">
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-100 animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-6 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2.5 rounded-2xl">
+                  <Calendar size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold">ضبط الجدول يدوياً</h3>
+                  <p className="text-xs text-emerald-100 font-medium">اختر الفصل لإدخال أو تعديل جدول مواده وحصصه الأسبوعية</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowManualScheduleModal(false)}
+                className="p-2 hover:bg-white/20 rounded-full transition-all text-white/80 hover:text-white"
+                title="إغلاق"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-auto p-6 space-y-4">
+              {classes.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {classes.map(c => {
+                    const scheduledCount = Object.values(c.schedule || {}).filter(Boolean).length;
+                    const leaderTeacher = teachers.find(t => (Array.isArray(t.leader_of) ? t.leader_of : []).includes(c.id));
+                    
+                    return (
+                      <div 
+                        key={c.id}
+                        className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 hover:border-emerald-300 hover:bg-emerald-50/20 transition-all flex flex-col justify-between gap-3 group"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <h4 className="font-bold text-slate-900 text-base">{c.name}</h4>
+                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-lg border ${
+                              scheduledCount > 0 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-slate-200 text-slate-600 border-slate-300'
+                            }`}>
+                              {scheduledCount > 0 ? `${scheduledCount} حصة مسجلة` : 'لم يُضبط بعد'}
+                            </span>
+                          </div>
+                          {leaderTeacher ? (
+                            <p className="text-[11px] text-amber-700 font-bold flex items-center gap-1">
+                              <ShieldCheck size={13} />
+                              رائد الفصل: {leaderTeacher.name}
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-slate-400 font-medium">
+                              بدون رائد فصل
+                            </p>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setShowManualScheduleModal(false);
+                            openScheduleEditor(c);
+                          }}
+                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
+                        >
+                          <Calendar size={14} />
+                          <span>إعداد جدول ({c.name})</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                  <Users size={36} className="mx-auto text-slate-300 mb-2" />
+                  <p className="text-slate-600 font-bold text-sm">لا يوجد فصول مضافة بعد</p>
+                  <p className="text-slate-400 text-xs mt-1 mb-4">يجب إضافة الفصول الدراسية أولاً قبل ضبط جداولها</p>
+                  <button
+                    onClick={() => {
+                      setShowManualScheduleModal(false);
+                      setManagementModalTab('classes');
+                    }}
+                    className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
+                  >
+                    إضافة فصول الآن
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setShowManualScheduleModal(false)}
+                className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-all"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:hidden">
-        <div 
-          onClick={() => setManagementModalTab('teachers')}
-          className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-6 rounded-3xl text-white shadow-xl cursor-pointer hover:scale-[1.02] transition-transform"
-          title="اضغط لفتح إدارة المعلمين"
-        >
-          <div className="flex justify-between items-center">
-            <p className="opacity-80 text-sm font-medium">إجمالي المعلمين</p>
-            <User size={20} className="opacity-80" />
-          </div>
-          <h3 className="text-3xl font-bold mt-2">{teachers.length}</h3>
-          <p className="text-xs opacity-75 mt-2 flex items-center gap-1">اضغط للإدارة والتحكم ←</p>
-        </div>
+        {/* البطاقة الأولى: المعلمون والفصول */}
         <div 
           onClick={() => setManagementModalTab('classes')}
-          className="bg-gradient-to-br from-blue-500 to-blue-700 p-6 rounded-3xl text-white shadow-xl cursor-pointer hover:scale-[1.02] transition-transform"
-          title="اضغط لفتح إدارة الفصول"
+          className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-blue-700 p-6 rounded-3xl text-white shadow-xl cursor-pointer hover:scale-[1.02] transition-transform"
+          title="اضغط لإدارة المعلمين والفصول وريادة الصف"
         >
           <div className="flex justify-between items-center">
-            <p className="opacity-80 text-sm font-medium">إجمالي الفصول</p>
-            <Users size={20} className="opacity-80" />
+            <p className="opacity-85 text-sm font-bold">المعلمون والفصول</p>
+            <Users size={22} className="opacity-85" />
           </div>
-          <h3 className="text-3xl font-bold mt-2">{classes.length}</h3>
-          <p className="text-xs opacity-75 mt-2 flex items-center gap-1">اضغط للإدارة والتحكم ←</p>
+          <div className="flex items-baseline gap-2 mt-2">
+            <h3 className="text-3xl font-black">{teachers.length}</h3>
+            <span className="text-sm font-bold opacity-80">معلم</span>
+            <span className="opacity-40 text-lg">·</span>
+            <h3 className="text-3xl font-black">{classes.length}</h3>
+            <span className="text-sm font-bold opacity-80">فصل</span>
+          </div>
+          <p className="text-xs opacity-80 mt-3 flex items-center gap-1 font-medium">إدارة المعلمين، الفصول، وريادة الصف ←</p>
         </div>
+
+        {/* البطاقة الثانية: ضبط الجدول يدوي */}
+        <div 
+          onClick={() => setShowManualScheduleModal(true)}
+          className="bg-gradient-to-br from-emerald-500 via-teal-600 to-teal-700 p-6 rounded-3xl text-white shadow-xl cursor-pointer hover:scale-[1.02] transition-transform"
+          title="اضغط لضبط جدول الحصص يدوياً"
+        >
+          <div className="flex justify-between items-center">
+            <p className="opacity-85 text-sm font-bold">ضبط الجدول يدوي</p>
+            <Calendar size={22} className="opacity-85" />
+          </div>
+          <h3 className="text-2xl font-black mt-2">إعداد جدول الحصص</h3>
+          <p className="text-xs opacity-80 mt-3 flex items-center gap-1 font-medium">تحديد المواد والحصص لكل فصل يدوياً ←</p>
+        </div>
+
+        {/* البطاقة الثالثة: حالة النظام */}
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-center">
           <div className="text-center">
              <CheckCircle2 size={32} className="text-green-500 mx-auto mb-2" />
-             <p className="text-gray-500 text-xs font-bold">تم التحديث تلقائياً</p>
+             <p className="text-gray-800 text-sm font-black">جاهز للطباعة والمشاركة</p>
+             <p className="text-gray-400 text-xs font-medium mt-0.5">محدث سحابياً بالكامل</p>
           </div>
         </div>
       </div>
