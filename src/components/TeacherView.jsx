@@ -977,38 +977,42 @@ function TeacherView() {
                         <td 
                           key={period} 
                           onClick={() => slotInfo && toggleCellSelection(day.id, period, slotInfo)}
-                          className={`p-1 md:p-2 border-l border-slate-50 last:border-l-0 transition-all relative h-12 md:h-28 align-middle ${
+                          className={`p-1.5 md:p-2.5 border-l border-slate-100 last:border-l-0 transition-all relative min-h-[60px] md:h-32 align-top ${
                             slotInfo 
                             ? `cursor-pointer ${
                                 isSelected 
-                                  ? 'bg-indigo-100 ring-2 ring-inset ring-indigo-500 z-10' 
-                                  : 'hover:bg-indigo-50/50 active:bg-indigo-100'
+                                  ? 'bg-indigo-100/80 ring-2 ring-inset ring-indigo-500 z-10' 
+                                  : 'hover:bg-indigo-50/60 active:bg-indigo-100'
                               }` 
-                            : 'bg-gray-50/30 opacity-20 cursor-not-allowed'
+                            : 'bg-gray-50/40 opacity-30 cursor-not-allowed'
                           }`}
                         >
-                          <div className="flex flex-col h-full justify-between select-none">
+                          <div className="flex flex-col h-full justify-between select-none gap-1">
                             {isSelected && (
-                              <div className="absolute top-0.5 left-0.5 md:top-1 md:left-1 bg-indigo-600 text-white rounded-full p-0.5 shadow-sm">
-                                <CheckCircle2 size={9} className="md:w-3 md:h-3" />
+                              <div className="absolute top-1 left-1 bg-indigo-600 text-white rounded-full p-0.5 shadow-md z-20">
+                                <CheckCircle2 size={12} className="md:w-3.5 md:h-3.5" />
                               </div>
                             )}
                             {slotInfo && (
-                              <div className="text-[9px] md:text-[10px] font-black text-indigo-600 px-0.5 flex flex-col items-end leading-tight">
-                                <span className="truncate max-w-full">{slotInfo.subject}</span>
-                                <span className="text-[7px] md:text-[8px] opacity-60 truncate max-w-full">{slotInfo.className}</span>
+                              <div className="bg-indigo-50/90 border border-indigo-100/90 rounded-lg md:rounded-xl px-1.5 py-1 flex flex-col items-center justify-center text-center shadow-xs">
+                                <span className="text-xs md:text-sm font-black text-indigo-900 tracking-tight leading-tight truncate max-w-full">
+                                  {slotInfo.subject}
+                                </span>
+                                <span className="text-[10px] md:text-xs font-bold text-indigo-600 mt-0.5 truncate max-w-full">
+                                  {slotInfo.className}
+                                </span>
                               </div>
                             )}
                             
                             {cellData?.title ? (
-                              <div className="bg-indigo-50/70 p-0.5 md:p-2 rounded md:rounded-xl border border-indigo-100 text-right">
-                                <p className="font-bold text-indigo-900 text-[7px] md:text-[10px] line-clamp-1">{cellData.title}</p>
-                                <p className="hidden md:block text-[8px] text-indigo-400 line-clamp-1">{cellData.objective}</p>
+                              <div className="bg-emerald-50/90 p-1 md:p-2 rounded-lg md:rounded-xl border border-emerald-200 text-right shadow-xs mt-auto">
+                                <p className="font-extrabold text-emerald-950 text-[10px] md:text-xs line-clamp-1 leading-snug">{cellData.title}</p>
+                                <p className="hidden md:block text-[9px] md:text-[10px] text-emerald-700 line-clamp-1 font-medium mt-0.5">{cellData.objective}</p>
                               </div>
                             ) : slotInfo ? (
-                              <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                                 <div className="p-0.5 md:p-2 bg-slate-100 rounded-full text-slate-400">
-                                   <Plus size={10} className="md:w-4 md:h-4" />
+                              <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all mt-auto py-1">
+                                 <div className="p-1 md:p-1.5 bg-indigo-100 rounded-full text-indigo-600 shadow-xs">
+                                   <Plus size={12} className="md:w-4 md:h-4" />
                                  </div>
                               </div>
                             ) : null}
