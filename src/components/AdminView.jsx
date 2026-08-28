@@ -141,19 +141,19 @@ const AdminView = () => {
           const s = schoolRecord.settings;
           if (s.teacher_passwords) passwordsObj = s.teacher_passwords;
           setPrincipalName(s.principal_name || '');
-          setEducationDept(s.education_dept || 'ادارة التعليم');
+          setEducationDept(s.education_dept || '');
           setSchoolGender(s.school_gender || 'boys');
           setSchoolPhone(s.school_contact_phone || '');
         } else {
           setPrincipalName('');
-          setEducationDept('ادارة التعليم');
+          setEducationDept('');
           setSchoolGender('boys');
           setSchoolPhone('');
         }
       } else {
         setSchoolName('');
         setPrincipalName('');
-        setEducationDept('ادارة التعليم');
+        setEducationDept('');
         setSchoolGender('boys');
         setSchoolPhone('');
       }
