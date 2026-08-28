@@ -50,11 +50,11 @@ const AdminView = () => {
 
   // School & Principal Info State
   const [showSchoolInfoModal, setShowSchoolInfoModal] = useState(false);
-  const [principalName, setPrincipalName] = useState(() => localStorage.getItem('admin_principal_name') || '');
-  const [schoolPhone, setSchoolPhone] = useState(() => localStorage.getItem('admin_school_contact_phone') || '');
-  const [schoolName, setSchoolName] = useState(() => localStorage.getItem('admin_school_name') || '');
-  const [educationDept, setEducationDept] = useState(() => localStorage.getItem('admin_education_dept') || 'ادارة التعليم');
-  const [schoolGender, setSchoolGender] = useState(() => localStorage.getItem('admin_school_gender') || 'boys'); // 'boys' | 'girls'
+  const [principalName, setPrincipalName] = useState('');
+  const [schoolPhone, setSchoolPhone] = useState('');
+  const [schoolName, setSchoolName] = useState('');
+  const [educationDept, setEducationDept] = useState('ادارة التعليم');
+  const [schoolGender, setSchoolGender] = useState('boys'); // 'boys' | 'girls'
   const [isSavingSchoolInfo, setIsSavingSchoolInfo] = useState(false);
 
   // Passwords Management & PIN State
@@ -130,49 +130,36 @@ const AdminView = () => {
       const { data: tchData } = await supabase.from('teachers').select('*').eq('school_phone', currentSchoolPhone).order('created_at');
       const { data: plansData } = await supabase.from('weekly_plans').select('*').eq('school_phone', currentSchoolPhone);
       const { data: schoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
-      const { data: allSettings } = await supabase.from('settings').select('*');
 
       let passwordsObj = {};
       let savedPin = '';
 
       if (schoolRecord) {
-        if (schoolRecord.name) setSchoolName(schoolRecord.name);
+        setSchoolName(schoolRecord.name || '');
         if (schoolRecord.admin_pin) savedPin = schoolRecord.admin_pin;
         if (schoolRecord.settings) {
           const s = schoolRecord.settings;
           if (s.teacher_passwords) passwordsObj = s.teacher_passwords;
-          if (s.principal_name) setPrincipalName(s.principal_name);
-          if (s.education_dept) setEducationDept(s.education_dept);
-          if (s.school_gender) setSchoolGender(s.school_gender);
-          if (s.school_contact_phone) setSchoolPhone(s.school_contact_phone);
+          setPrincipalName(s.principal_name || '');
+          setEducationDept(s.education_dept || 'ادارة التعليم');
+          setSchoolGender(s.school_gender || 'boys');
+          setSchoolPhone(s.school_contact_phone || '');
+        } else {
+          setPrincipalName('');
+          setEducationDept('ادارة التعليم');
+          setSchoolGender('boys');
+          setSchoolPhone('');
         }
-      }
-
-      if (allSettings && allSettings.length > 0) {
-        const settingsMap = {};
-        allSettings.forEach(s => { settingsMap[s.key] = s.value; });
-
-        if (!Object.keys(passwordsObj).length && settingsMap.teacher_passwords) {
-          try {
-            passwordsObj = typeof settingsMap.teacher_passwords === 'string' 
-              ? JSON.parse(settingsMap.teacher_passwords) 
-              : settingsMap.teacher_passwords;
-          } catch (e) {
-            console.error('Error parsing teacher passwords:', e);
-          }
-        }
-
-        if (!savedPin && settingsMap.admin_pin) {
-          savedPin = settingsMap.admin_pin;
-        }
-
-        if (!schoolRecord?.name && settingsMap.school_name) {
-          setSchoolName(settingsMap.school_name);
-        }
+      } else {
+        setSchoolName('');
+        setPrincipalName('');
+        setEducationDept('ادارة التعليم');
+        setSchoolGender('boys');
+        setSchoolPhone('');
       }
 
       if (!savedPin) {
-        savedPin = localStorage.getItem(`admin_master_pin_${currentSchoolPhone}`) || localStorage.getItem('admin_master_pin') || '';
+        savedPin = localStorage.getItem(`admin_master_pin_${currentSchoolPhone}`) || '';
       }
       setStoredAdminPin(savedPin);
 
@@ -602,12 +589,6 @@ const AdminView = () => {
           school_contact_phone: schoolPhone.trim()
         }
       }, { onConflict: 'phone' });
-
-      localStorage.setItem('admin_principal_name', principalName.trim());
-      localStorage.setItem('admin_school_contact_phone', schoolPhone.trim());
-      localStorage.setItem('admin_school_name', schoolName.trim());
-      localStorage.setItem('admin_education_dept', educationDept.trim());
-      localStorage.setItem('admin_school_gender', schoolGender);
 
       setShowSchoolInfoModal(false);
       alert('تم حفظ بيانات المدير والمدرسة بنجاح');
