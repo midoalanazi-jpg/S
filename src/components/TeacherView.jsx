@@ -22,7 +22,11 @@ const PERIODS = [1, 2, 3, 4, 5, 6, 7];
 function TeacherView() {
   const navigate = useNavigate();
   const { schoolPhone: urlPhone } = useParams();
-  const currentSchoolPhone = urlPhone || localStorage.getItem('active_school_phone') || '0555279721';
+  const currentSchoolPhone = urlPhone || (window.location.pathname.startsWith('/s/') ? localStorage.getItem('active_school_phone') : null);
+
+  const [lookupPhoneInput, setLookupPhoneInput] = useState('');
+  const [lookupError, setLookupError] = useState('');
+  const [isLookingUp, setIsLookingUp] = useState(false);
 
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [teachers, setTeachers] = useState([]);
@@ -54,11 +58,16 @@ function TeacherView() {
 
   // Load metadata from Supabase
   useEffect(() => {
-    localStorage.setItem('active_school_phone', currentSchoolPhone);
-    fetchInitialData();
+    if (currentSchoolPhone) {
+      localStorage.setItem('active_school_phone', currentSchoolPhone);
+      fetchInitialData();
+    } else {
+      setIsLoading(false);
+    }
   }, [currentSchoolPhone]);
 
   const fetchInitialData = async () => {
+    if (!currentSchoolPhone) return;
     setIsLoading(true);
     try {
       const { data: clsData } = await supabase.from('classes').select('*').eq('school_phone', currentSchoolPhone);
@@ -397,6 +406,104 @@ function TeacherView() {
   const currentSelectedTeacher = teachers.find(t => t.id === selectedTeacherId);
   const teacherStoredPassword = selectedTeacherId ? (teacherPasswords[selectedTeacherId] || currentSelectedTeacher?.assignments?._password) : null;
   const isFirstTimeTeacher = selectedTeacherId && !teacherStoredPassword;
+
+  // إذا لم يتم تحديد مدرسة بالرابط، نعرض شاشة البحث بالرقم
+  if (!currentSchoolPhone) {
+    const handleLookupSubmit = async (e) => {
+      e.preventDefault();
+      const cleaned = lookupPhoneInput.trim().replace(/\s+/g, '');
+      if (!cleaned || cleaned.length < 9) {
+        setLookupError('يرجى إدخال رقم جوال صحيح مكون من 10 أرقام');
+        return;
+      }
+      setIsLookingUp(true);
+      setLookupError('');
+      try {
+        const { data: foundSchool, error: schoolErr } = await supabase.from('schools').select('*').eq('phone', cleaned).maybeSingle();
+        if (schoolErr || !foundSchool) {
+          setLookupError('لم يتم العثور على مدرسة مسجلة بهذا الرقم. تأكد من صحة الرقم أو قم بنشر الجدول أولاً من برنامج نصابي.');
+        } else {
+          localStorage.setItem('active_school_phone', cleaned);
+          navigate(`/s/${cleaned}`);
+        }
+      } catch (err) {
+        console.error('Lookup error:', err);
+        setLookupError('حدث خطأ أثناء البحث، يرجى المحاولة لاحقاً.');
+      } finally {
+        setIsLookingUp(false);
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-between" dir="rtl">
+        {/* Header */}
+        <header className="w-full bg-white/80 backdrop-blur-md border-b border-slate-100 py-3 px-4 sm:px-8 sticky top-0 z-40">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="شعار نصابي" className="w-10 h-10 object-contain rounded-xl shadow-xs" />
+              <div>
+                <h2 className="text-sm font-bold text-slate-800 leading-tight">نصابي</h2>
+                <p className="text-[11px] text-slate-400 font-medium">منصة الخطط الأسبوعية وجداول الحصص</p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="w-full max-w-md">
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl w-full border border-slate-100 space-y-6 animate-in fade-in">
+              <div className="text-center space-y-2">
+                <div className="w-16 h-16 bg-blue-50 text-blue-600 p-1 rounded-2xl flex items-center justify-center mx-auto shadow-md border border-blue-100">
+                  <School size={32} />
+                </div>
+                <h1 className="text-2xl font-bold text-slate-900">دخول منصة المدرسة</h1>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  أدخل رقم جوال اشتراك المدرسة للوصول إلى جداول وخطط مدرستك:
+                </p>
+              </div>
+
+              <form onSubmit={handleLookupSubmit} className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-600 mb-2 block mr-1">
+                    رقم جوال المدرسة:
+                  </label>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={lookupPhoneInput}
+                    onChange={(e) => {
+                      setLookupPhoneInput(e.target.value);
+                      if (lookupError) setLookupError('');
+                    }}
+                    placeholder="مثال: 05xxxxxxxx"
+                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500 font-mono font-bold text-slate-800 outline-none transition-all text-center tracking-wider text-lg"
+                    dir="ltr"
+                  />
+                  {lookupError && (
+                    <p className="text-xs font-bold text-red-500 mt-2 bg-red-50 p-2.5 rounded-xl border border-red-100 text-center leading-relaxed">
+                      {lookupError}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLookingUp}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isLookingUp ? <span>جاري التحقق...</span> : <span>دخول المنصة ⬅️</span>}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <footer className="text-center py-4 text-xs text-slate-400 font-medium">
+          برنامج نصابي © {new Date().getFullYear()} — الخطط الأسبوعية وجداول الحصص
+        </footer>
+      </div>
+    );
+  }
 
   if (!selectedTeacherId || !isAuthenticated) {
     return (

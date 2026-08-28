@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, Navigate } from 'react-router-dom';
 import { 
   Plus, Trash2, Save, Download, Upload,
   User, Users, ChevronRight, FileText, CheckCircle2,
@@ -28,7 +28,7 @@ const SUBJECTS = [
 
 const AdminView = () => {
   const { schoolPhone: urlPhone } = useParams();
-  const currentSchoolPhone = urlPhone || localStorage.getItem('active_school_phone') || '0555279721';
+  const currentSchoolPhone = urlPhone || (window.location.pathname.startsWith('/s/') ? localStorage.getItem('active_school_phone') : null);
 
   const [classes, setClasses] = useState([]);
   const [teachers, setTeachers] = useState([]);
@@ -106,8 +106,12 @@ const AdminView = () => {
 
   // Load data from Supabase
   useEffect(() => {
-    localStorage.setItem('active_school_phone', currentSchoolPhone);
-    fetchInitialData();
+    if (currentSchoolPhone) {
+      localStorage.setItem('active_school_phone', currentSchoolPhone);
+      fetchInitialData();
+    } else {
+      setIsLoading(false);
+    }
 
     // Check if user previously chose "لا تسألني مرة أخرى"
     const dontAsk = localStorage.getItem('admin_bookmark_dont_ask');
@@ -731,6 +735,10 @@ const AdminView = () => {
 
   const printData = getFullClassData();
   const allPrintData = isBulkExport ? classes.map(c => getFullClassData(c.id)).filter(d => d !== null) : [];
+
+  if (!currentSchoolPhone) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
