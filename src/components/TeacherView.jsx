@@ -22,7 +22,8 @@ const PERIODS = [1, 2, 3, 4, 5, 6, 7];
 function TeacherView() {
   const navigate = useNavigate();
   const { schoolPhone: urlPhone } = useParams();
-  const currentSchoolPhone = urlPhone || (window.location.pathname.startsWith('/s/') ? localStorage.getItem('active_school_phone') : null);
+  const savedActivePhone = localStorage.getItem('active_school_phone');
+  const currentSchoolPhone = urlPhone || (savedActivePhone && savedActivePhone !== '1448' ? savedActivePhone : null);
 
   const [lookupPhoneInput, setLookupPhoneInput] = useState('');
   const [lookupError, setLookupError] = useState('');
@@ -55,6 +56,13 @@ function TeacherView() {
   const [newAdminPinVal, setNewAdminPinVal] = useState('');
   const [confirmAdminPinVal, setConfirmAdminPinVal] = useState('');
   const [showAdminPinText, setShowAdminPinText] = useState(false);
+
+  // Auto redirect if school phone was previously saved
+  useEffect(() => {
+    if (!urlPhone && savedActivePhone && savedActivePhone !== '1448') {
+      navigate(`/s/${savedActivePhone}`, { replace: true });
+    }
+  }, [urlPhone, savedActivePhone]);
 
   // Load metadata from Supabase
   useEffect(() => {
