@@ -569,7 +569,7 @@ function TeacherView() {
                     }}
                     className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700 outline-none transition-all"
                   >
-                    <option value="">{schoolInfo?.settings?.school_gender === 'girls' ? '-- اختاري المعلمة --' : '-- اختر المعلم --'}</option>
+                    <option value="">{schoolInfo?.settings?.school_gender === 'girls' ? '-- اختاري اسمكِ --' : '-- اختر اسمك --'}</option>
                     {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
