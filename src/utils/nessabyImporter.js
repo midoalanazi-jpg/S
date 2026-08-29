@@ -16,24 +16,31 @@ export const DAY_NAME_TO_ID = {
 };
 
 /**
- * تحليل ملف تصدير نصابي وتحويله إلى بنية متوافقة
+ * تحليل ملف تصدير نصابي وتحويله إلى بنية متوافقة مع المنصة
  */
 export function parseNessabyBackup(rawJson) {
-  const data = (rawJson && rawJson.data && typeof rawJson.data === 'object') ? rawJson.data : rawJson;
+  let data = rawJson;
+  if (data && typeof data === 'object') {
+    if (data.data && typeof data.data === 'object') {
+      data = data.data;
+    } else if (data.state && typeof data.state === 'object') {
+      data = data.state;
+    }
+  }
 
   if (!data || typeof data !== 'object') {
     throw new Error('الملف لا يحتوي على بيانات صالحة');
   }
 
-  const schoolName = data.school?.name || rawJson.schoolName || '';
+  const schoolName = data.school?.name || data.schoolName || data.school_name || rawJson.schoolName || '';
   const rawClasses = Array.isArray(data.classes) ? data.classes : [];
   const rawTeachers = Array.isArray(data.teachers) ? data.teachers : [];
-  const rawSchedule = (data.schedule && typeof data.schedule === 'object') ? data.schedule : {};
+  const rawSchedule = (data.schedule || data.timetable || data.table || data.class_schedule || {});
 
   // 1. استخراج جميع أسماء الفصول
   const classNamesSet = new Set();
   rawClasses.forEach(c => {
-    const name = (typeof c === 'string' ? c : c.name)?.trim();
+    const name = (typeof c === 'string' ? c : (c.name || c.className || c.title))?.trim();
     if (name) classNamesSet.add(name);
   });
   Object.keys(rawSchedule).forEach(k => {
@@ -59,7 +66,7 @@ export function parseNessabyBackup(rawJson) {
           if (typeof cell === 'string') {
             subject = cell.trim();
           } else if (cell && typeof cell === 'object') {
-            subject = (cell.subject || '').trim();
+            subject = (cell.subject || cell.name || '').trim();
           }
           if (subject && subject !== '🚫' && subject !== '—') {
             scheduleObj[`${dayId}_${periodNum}`] = subject;
@@ -90,16 +97,16 @@ export function parseNessabyBackup(rawJson) {
     return teachersMap.get(cleanName);
   };
 
-  // من قائمة المعلمين
+  // من مصفوفة المعلمين
   rawTeachers.forEach(t => {
-    const name = (typeof t === 'string' ? t : t.name)?.trim();
+    const name = (typeof t === 'string' ? t : (t.name || t.teacherName))?.trim();
     if (!name) return;
     const teacherObj = getOrCreateTeacher(name);
 
     if (Array.isArray(t.assignments)) {
       t.assignments.forEach(assign => {
-        const sub = (assign.subject || '').trim();
-        const assignClasses = Array.isArray(assign.classes) ? assign.classes : [];
+        const sub = (assign.subject || assign.name || '').trim();
+        const assignClasses = Array.isArray(assign.classes) ? assign.classes : (assign.class ? [assign.class] : []);
         if (sub) {
           assignClasses.forEach(cls => {
             const cName = (typeof cls === 'string' ? cls : cls.name)?.trim();
@@ -114,7 +121,7 @@ export function parseNessabyBackup(rawJson) {
       });
     } else if (t.subject) {
       const sub = t.subject.trim();
-      const assignClasses = Array.isArray(t.classes) ? t.classes : [];
+      const assignClasses = Array.isArray(t.classes) ? t.classes : (t.class ? [t.class] : []);
       assignClasses.forEach(cls => {
         const cName = (typeof cls === 'string' ? cls : cls.name)?.trim();
         if (cName) {
@@ -135,9 +142,9 @@ export function parseNessabyBackup(rawJson) {
       const periods = dayGrid[day] || {};
       Object.keys(periods).forEach(p => {
         const cell = periods[p];
-        if (cell && typeof cell === 'object' && cell.teacher && cell.subject) {
-          const tName = cell.teacher.trim();
-          const sub = cell.subject.trim();
+        if (cell && typeof cell === 'object') {
+          const tName = (cell.teacher || cell.teacherName || '').trim();
+          const sub = (cell.subject || cell.name || '').trim();
           if (tName && sub && sub !== '🚫' && sub !== '—') {
             const teacherObj = getOrCreateTeacher(tName);
             if (!teacherObj.assignmentsByClassName[cleanClsName]) {
@@ -172,26 +179,28 @@ export function parseNessabyBackup(rawJson) {
 }
 
 /**
- * تنفيذ الاستيراد وحفظ البيانات في Supabase
+ * تنفيذ الاستيراد وحفظ البيانات في Supabase مع ربطها برقم هاتف المدرسة الحالي
  */
-export async function importNessabyDataToSupabase(parsedData, isOverwrite = true) {
+export async function importNessabyDataToSupabase(parsedData, isOverwrite = true, schoolPhone = null) {
   const { classes: newClasses, teachers: newTeachers, schoolName } = parsedData;
 
   if (isOverwrite) {
-    // 1. مسح البيانات القديمة
-    const { data: exPlans } = await supabase.from('weekly_plans').select('id');
-    if (exPlans && exPlans.length > 0) {
-      await supabase.from('weekly_plans').delete().in('id', exPlans.map(p => p.id));
-    }
+    // 1. مسح البيانات القديمة الخاصة بالمدرسة الحالية
+    if (schoolPhone) {
+      const { data: exPlans } = await supabase.from('weekly_plans').select('id').eq('school_phone', schoolPhone);
+      if (exPlans && exPlans.length > 0) {
+        await supabase.from('weekly_plans').delete().in('id', exPlans.map(p => p.id));
+      }
 
-    const { data: exTeachers } = await supabase.from('teachers').select('id');
-    if (exTeachers && exTeachers.length > 0) {
-      await supabase.from('teachers').delete().in('id', exTeachers.map(t => t.id));
-    }
+      const { data: exTeachers } = await supabase.from('teachers').select('id').eq('school_phone', schoolPhone);
+      if (exTeachers && exTeachers.length > 0) {
+        await supabase.from('teachers').delete().in('id', exTeachers.map(t => t.id));
+      }
 
-    const { data: exClasses } = await supabase.from('classes').select('id');
-    if (exClasses && exClasses.length > 0) {
-      await supabase.from('classes').delete().in('id', exClasses.map(c => c.id));
+      const { data: exClasses } = await supabase.from('classes').select('id').eq('school_phone', schoolPhone);
+      if (exClasses && exClasses.length > 0) {
+        await supabase.from('classes').delete().in('id', exClasses.map(c => c.id));
+      }
     }
   }
 
@@ -201,7 +210,8 @@ export async function importNessabyDataToSupabase(parsedData, isOverwrite = true
   if (isOverwrite) {
     const classesToInsert = newClasses.map(c => ({
       name: c.name,
-      schedule: c.schedule || {}
+      schedule: c.schedule || {},
+      school_phone: schoolPhone
     }));
 
     if (classesToInsert.length > 0) {
@@ -218,7 +228,10 @@ export async function importNessabyDataToSupabase(parsedData, isOverwrite = true
     }
   } else {
     // وضع الدمج: جلب الفصول الحالية وتحديثها أو إضافتها
-    const { data: currentClasses } = await supabase.from('classes').select('*');
+    let query = supabase.from('classes').select('*');
+    if (schoolPhone) query = query.eq('school_phone', schoolPhone);
+    const { data: currentClasses } = await query;
+
     const existingClassMap = {};
     (currentClasses || []).forEach(c => {
       existingClassMap[c.name.trim()] = c;
@@ -234,7 +247,7 @@ export async function importNessabyDataToSupabase(parsedData, isOverwrite = true
       } else {
         const { data: ins, error: insErr } = await supabase
           .from('classes')
-          .insert([{ name: trimmed, schedule: c.schedule || {} }])
+          .insert([{ name: trimmed, schedule: c.schedule || {}, school_phone: schoolPhone }])
           .select();
 
         if (!insErr && ins && ins[0]) {
@@ -258,7 +271,8 @@ export async function importNessabyDataToSupabase(parsedData, isOverwrite = true
       return {
         name: t.name,
         assignments: assignments,
-        leader_of: []
+        leader_of: [],
+        school_phone: schoolPhone
       };
     });
 
@@ -271,7 +285,10 @@ export async function importNessabyDataToSupabase(parsedData, isOverwrite = true
     }
   } else {
     // وضع الدمج للمعلمين
-    const { data: currentTeachers } = await supabase.from('teachers').select('*');
+    let tchQuery = supabase.from('teachers').select('*');
+    if (schoolPhone) tchQuery = tchQuery.eq('school_phone', schoolPhone);
+    const { data: currentTeachers } = await tchQuery;
+
     const existingTeacherMap = {};
     (currentTeachers || []).forEach(t => {
       existingTeacherMap[t.name.trim()] = t;
@@ -300,19 +317,21 @@ export async function importNessabyDataToSupabase(parsedData, isOverwrite = true
         await supabase.from('teachers').insert([{
           name: trimmedName,
           assignments: assignments,
-          leader_of: []
+          leader_of: [],
+          school_phone: schoolPhone
         }]);
       }
     }
   }
 
   // 4. حفظ اسم المدرسة إن وُجد
-  if (schoolName) {
-    await supabase.from('settings').upsert({
-      key: 'school_name',
-      value: schoolName
-    });
+  if (schoolName && schoolPhone) {
+    await supabase.from('schools').upsert({
+      phone: schoolPhone,
+      name: schoolName
+    }, { onConflict: 'phone' });
   }
 
   return { success: true };
 }
+
