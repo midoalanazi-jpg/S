@@ -7,6 +7,7 @@ import {
   Star, Bookmark, Smartphone, Monitor, Check, Sparkles, RefreshCw, Home, Share2, Copy, School
 } from 'lucide-react';
 import HijriDatePicker from '@mk01/react-hijri-date-picker';
+import * as XLSX from 'xlsx';
 
 import { supabase } from '../supabaseClient';
 import { parseNessabyBackup, importNessabyDataToSupabase } from '../utils/nessabyImporter';
@@ -83,6 +84,23 @@ const AdminView = () => {
 
   // Bookmark Prompt State
   const [showBookmarkPrompt, setShowBookmarkPrompt] = useState(false);
+
+  // Manual Setup Wizard State
+  const [manualSetupStep, setManualSetupStep] = useState(1);
+  const [schoolSubjects, setSchoolSubjects] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`school_subjects_${currentSchoolPhone}`);
+      return saved ? JSON.parse(saved) : SUBJECTS;
+    } catch {
+      return SUBJECTS;
+    }
+  });
+  const [newSubjectName, setNewSubjectName] = useState('');
+  const [newClassLeaderId, setNewClassLeaderId] = useState('');
+  const [showBulkPasteModal, setShowBulkPasteModal] = useState(false);
+  const [bulkTeachersText, setBulkTeachersText] = useState('');
+  const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const excelFileInputRef = useRef(null);
 
   // Smooth Hide on Scroll Down State
   const [showHeader, setShowHeader] = useState(true);
@@ -561,6 +579,142 @@ const AdminView = () => {
       alert(`خطأ أثناء حفظ رائد الفصل: ${err.message || err}`);
     } finally {
       setIsSavingLeader(false);
+    }
+  };
+
+  const handleAddCustomSubject = () => {
+    if (!newSubjectName.trim()) return;
+    const name = newSubjectName.trim();
+    if (schoolSubjects.includes(name)) {
+      alert('المادة موجودة مسبقاً في القائمة');
+      return;
+    }
+    const updated = [...schoolSubjects, name];
+    setSchoolSubjects(updated);
+    setNewSubjectName('');
+    localStorage.setItem(`school_subjects_${currentSchoolPhone}`, JSON.stringify(updated));
+  };
+
+  const handleDeleteCustomSubject = (subj) => {
+    const updated = schoolSubjects.filter(s => s !== subj);
+    setSchoolSubjects(updated);
+    localStorage.setItem(`school_subjects_${currentSchoolPhone}`, JSON.stringify(updated));
+  };
+
+  const handleAddClassWithLeader = async () => {
+    if (!newClassName.trim()) return;
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .insert([{ name: newClassName.trim(), schedule: {}, school_phone: currentSchoolPhone }])
+        .select();
+      
+      if (error) {
+        alert(`خطأ في إضافة الفصل: ${error.message || JSON.stringify(error)}`);
+        return;
+      }
+
+      const createdClass = data[0];
+      setClasses(prev => [...prev, createdClass]);
+
+      // If a leader teacher was chosen during class creation
+      if (newClassLeaderId) {
+        await handleSaveClassLeader(createdClass.id, newClassLeaderId);
+      }
+
+      setNewClassName('');
+      setNewClassLeaderId('');
+      alert('تمت إضافة الفصل بنجاح');
+    } catch (err) {
+      alert(`خطأ: ${err.message || err}`);
+    }
+  };
+
+  const handleExcelTeacherImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImportingExcel(true);
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      const extractedNames = [];
+      const skipKeywords = ['م', 'الاسم', 'اسم المعلم', 'المعلم', 'الرقم', 'name', 'teacher', 'id', 'no', 'التخصص', 'المادة', 'الهاتف', 'الجوال'];
+
+      for (const row of jsonRows) {
+        if (!Array.isArray(row)) continue;
+        for (const cell of row) {
+          const val = String(cell || '').trim();
+          if (val && val.length >= 2 && !skipKeywords.includes(val.toLowerCase()) && isNaN(Number(val))) {
+            if (!extractedNames.includes(val) && !teachers.some(t => t.name === val)) {
+              extractedNames.push(val);
+            }
+          }
+        }
+      }
+
+      if (extractedNames.length === 0) {
+        alert('لم يتم العثور على أسماء معلمين جديدة في الملف المحدد.');
+        return;
+      }
+
+      const newTeacherObjects = extractedNames.map(name => ({
+        name,
+        assignments: {},
+        leader_of: [],
+        school_phone: currentSchoolPhone
+      }));
+
+      const { data: inserted, error } = await supabase
+        .from('teachers')
+        .insert(newTeacherObjects)
+        .select();
+
+      if (error) {
+        alert(`حدث خطأ أثناء حفظ المعلمين: ${error.message || JSON.stringify(error)}`);
+      } else {
+        setTeachers(prev => [...prev, ...inserted]);
+        alert(`✅ تم استيراد (${inserted.length}) معلماً بنجاح من ملف الإكسل!`);
+      }
+    } catch (err) {
+      console.error('Excel import error:', err);
+      alert('حدث خطأ أثناء قراءة ملف الإكسل. يرجى التأكد من اختيار ملف Excel صالح (.xlsx أو .xls)');
+    } finally {
+      setIsImportingExcel(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleBulkAddTeachers = async () => {
+    if (!bulkTeachersText.trim()) return;
+    const names = bulkTeachersText.split('\n').map(n => n.trim()).filter(n => n.length >= 2);
+    const uniqueNames = names.filter(n => !teachers.some(t => t.name === n));
+    if (uniqueNames.length === 0) {
+      alert('لا توجد أسماء جديدة للإضافة أو جميع الأسماء مضافة مسبقاً.');
+      return;
+    }
+    const newTeacherObjects = uniqueNames.map(name => ({
+      name,
+      assignments: {},
+      leader_of: [],
+      school_phone: currentSchoolPhone
+    }));
+    const { data: inserted, error } = await supabase
+      .from('teachers')
+      .insert(newTeacherObjects)
+      .select();
+
+    if (error) {
+      alert(`خطأ: ${error.message || JSON.stringify(error)}`);
+    } else {
+      setTeachers(prev => [...prev, ...inserted]);
+      setBulkTeachersText('');
+      setShowBulkPasteModal(false);
+      alert(`✅ تم إضافة (${inserted.length}) معلماً بنجاح!`);
     }
   };
 
@@ -1748,8 +1902,8 @@ const AdminView = () => {
                             onChange={(e) => updateTempSchedule(day.id, period, e.target.value)}
                             className="w-full p-2 bg-gray-50 border-none rounded-lg text-[10px] font-bold text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                           >
-                            <option value="">-- اختر --</option>
-                            {SUBJECTS.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                            <option value="">-- اختر المادة --</option>
+                            {schoolSubjects.map(sub => <option key={sub} value={sub}>{sub}</option>)}
                           </select>
                         </td>
                       ))}
@@ -2192,19 +2346,20 @@ const AdminView = () => {
         </div>
       )}
 
-      {/* Manual Schedule Selector Modal */}
+      {/* Manual Schedule Setup Wizard Modal */}
       {showManualScheduleModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in duration-200" dir="rtl">
-          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-100 animate-in zoom-in-95 duration-200">
+          <div className="bg-white w-full max-w-3xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-100 animate-in zoom-in-95 duration-200">
+            
             {/* Modal Header */}
-            <div className="p-6 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex justify-between items-center">
+            <div className="p-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 text-white flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="bg-white/20 p-2.5 rounded-2xl">
                   <Calendar size={24} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold">ضبط الجدول يدوياً</h3>
-                  <p className="text-xs text-emerald-100 font-medium">اختر الفصل لإدخال أو تعديل جدول مواده وحصصه الأسبوعية</p>
+                  <h3 className="text-xl font-bold">معالج إعداد وضبط الجدول يدوياً</h3>
+                  <p className="text-xs text-emerald-100 font-medium">خطوات بسيطة لإدخال المعلمين والمواد والفصول وضبط الحصص</p>
                 </div>
               </div>
               <button 
@@ -2216,81 +2371,494 @@ const AdminView = () => {
               </button>
             </div>
 
-            {/* Modal Content */}
-            <div className="flex-1 overflow-auto p-6 space-y-4">
-              {classes.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {classes.map(c => {
-                    const scheduledCount = Object.values(c.schedule || {}).filter(Boolean).length;
-                    const leaderTeacher = teachers.find(t => (Array.isArray(t.leader_of) ? t.leader_of : []).includes(c.id));
-                    
-                    return (
-                      <div 
-                        key={c.id}
-                        className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 hover:border-emerald-300 hover:bg-emerald-50/20 transition-all flex flex-col justify-between gap-3 group"
-                      >
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <h4 className="font-bold text-slate-900 text-base">{c.name}</h4>
-                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-lg border ${
-                              scheduledCount > 0 
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-slate-200 text-slate-600 border-slate-300'
-                            }`}>
-                              {scheduledCount > 0 ? `${scheduledCount} حصة مسجلة` : 'لم يُضبط بعد'}
-                            </span>
-                          </div>
-                          {leaderTeacher ? (
-                            <p className="text-[11px] text-amber-700 font-bold flex items-center gap-1">
-                              <ShieldCheck size={13} />
-                              رائد الفصل: {leaderTeacher.name}
-                            </p>
-                          ) : (
-                            <p className="text-[11px] text-slate-400 font-medium">
-                              بدون رائد فصل
-                            </p>
-                          )}
-                        </div>
+            {/* Stepper Bar (4 Steps) */}
+            <div className="flex items-center justify-between p-3.5 bg-slate-50 border-b border-slate-200 gap-1.5 overflow-x-auto text-xs font-bold">
+              <button
+                onClick={() => setManualSetupStep(1)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all shrink-0 ${
+                  manualSetupStep === 1 
+                    ? 'bg-indigo-600 text-white shadow-sm' 
+                    : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                }`}
+              >
+                <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px]">1</span>
+                <User size={14} />
+                <span>أولاً: المعلمون ({teachers.length})</span>
+              </button>
 
-                        <button
-                          onClick={() => {
-                            setShowManualScheduleModal(false);
-                            openScheduleEditor(c);
-                          }}
-                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
-                        >
-                          <Calendar size={14} />
-                          <span>إعداد جدول ({c.name})</span>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
-                  <Users size={36} className="mx-auto text-slate-300 mb-2" />
-                  <p className="text-slate-600 font-bold text-sm">لا يوجد فصول مضافة بعد</p>
-                  <p className="text-slate-400 text-xs mt-1 mb-4">يجب إضافة الفصول الدراسية أولاً قبل ضبط جداولها</p>
-                  <button
-                    onClick={() => {
-                      setShowManualScheduleModal(false);
-                      setManagementModalTab('classes');
-                    }}
-                    className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
-                  >
-                    إضافة فصول الآن
-                  </button>
-                </div>
-              )}
+              <span className="text-slate-300">←</span>
+
+              <button
+                onClick={() => setManualSetupStep(2)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all shrink-0 ${
+                  manualSetupStep === 2 
+                    ? 'bg-indigo-600 text-white shadow-sm' 
+                    : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                }`}
+              >
+                <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px]">2</span>
+                <Bookmark size={14} />
+                <span>ثانياً: المواد ({schoolSubjects.length})</span>
+              </button>
+
+              <span className="text-slate-300">←</span>
+
+              <button
+                onClick={() => setManualSetupStep(3)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all shrink-0 ${
+                  manualSetupStep === 3 
+                    ? 'bg-indigo-600 text-white shadow-sm' 
+                    : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                }`}
+              >
+                <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px]">3</span>
+                <Users size={14} />
+                <span>ثالثاً: الفصول ورواد الصف ({classes.length})</span>
+              </button>
+
+              <span className="text-slate-300">←</span>
+
+              <button
+                onClick={() => setManualSetupStep(4)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all shrink-0 ${
+                  manualSetupStep === 4 
+                    ? 'bg-emerald-600 text-white shadow-sm' 
+                    : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                }`}
+              >
+                <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px]">4</span>
+                <Calendar size={14} />
+                <span>رابعاً: جدول الحصص</span>
+              </button>
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
-              <button
-                onClick={() => setShowManualScheduleModal(false)}
-                className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-all"
+            {/* Stepper Content Body */}
+            <div className="flex-1 overflow-auto p-6 space-y-6">
+
+              {/* STEP 1: المعلمون (إدراج يدوي أو استيراد من Excel أو لصق متعدد) */}
+              {manualSetupStep === 1 && (
+                <div className="space-y-5 animate-in fade-in">
+                  <div>
+                    <h4 className="text-base font-bold text-slate-900">الخطوة الأولى: إدراج أسماء المعلمين</h4>
+                    <p className="text-xs text-slate-500 font-medium">أضف أسماء المعلمين يدوياً أو استوردهم بنقرة واحدة من ملف Excel أو لصق قائمة</p>
+                  </div>
+
+                  {/* Input & Action Buttons */}
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="اسم المعلم الجديد (مثال: أ. عبدالمحسن الشمري)..."
+                        value={newTeacherName}
+                        onChange={(e) => setNewTeacherName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newTeacherName.trim()) {
+                            const name = newTeacherName.trim();
+                            supabase.from('teachers').insert([{ name, assignments: {}, leader_of: [], school_phone: currentSchoolPhone }]).select()
+                              .then(({ data }) => {
+                                if (data) {
+                                  setTeachers(prev => [...prev, data[0]]);
+                                  setNewTeacherName('');
+                                }
+                              });
+                          }
+                        }}
+                        className="flex-1 p-3.5 bg-slate-50 rounded-2xl border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none font-bold text-sm"
+                      />
+                      <button 
+                        onClick={() => {
+                          if (!newTeacherName.trim()) return;
+                          const name = newTeacherName.trim();
+                          supabase.from('teachers').insert([{ name, assignments: {}, leader_of: [], school_phone: currentSchoolPhone }]).select()
+                            .then(({ data, error }) => {
+                              if (error) alert(`خطأ: ${error.message}`);
+                              else if (data) {
+                                setTeachers(prev => [...prev, data[0]]);
+                                setNewTeacherName('');
+                              }
+                            });
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 rounded-2xl font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-indigo-100 text-xs"
+                      >
+                        <Plus size={16} /> إضافة معلم
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {/* Excel Import Button */}
+                      <button
+                        type="button"
+                        onClick={() => excelFileInputRef.current?.click()}
+                        disabled={isImportingExcel}
+                        className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                      >
+                        <FileText size={16} className="text-emerald-600" />
+                        <span>{isImportingExcel ? 'جاري الاستيراد...' : '📥 استيراد من ملف إكسل (Excel)'}</span>
+                      </button>
+                      <input 
+                        type="file" 
+                        ref={excelFileInputRef}
+                        onChange={handleExcelTeacherImport}
+                        accept=".xlsx,.xls,.csv"
+                        className="hidden"
+                      />
+
+                      {/* Bulk Paste Button */}
+                      <button
+                        type="button"
+                        onClick={() => setShowBulkPasteModal(true)}
+                        className="px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm active:scale-95"
+                      >
+                        <Copy size={16} className="text-blue-600" />
+                        <span>📋 لصق قائمة أسماء المعلمين</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Teachers List */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                      <span>قائمة المعلمين المضافين ({teachers.length})</span>
+                      {teachers.length > 0 && <span className="text-emerald-600">✅ جاهز للانتقال للخطوة التالية</span>}
+                    </div>
+
+                    <div className="max-h-[38vh] overflow-y-auto space-y-2 pr-1">
+                      {teachers.map(t => (
+                        <div key={t.id} className="p-3 bg-slate-50 hover:bg-white rounded-2xl border border-slate-200/80 hover:border-indigo-200 flex items-center justify-between gap-2 transition-all">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0">
+                              <User size={15} />
+                            </div>
+                            <span className="font-bold text-slate-800 text-sm">{t.name}</span>
+                          </div>
+                          <button
+                            onClick={() => deleteTeacher(t.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="حذف المعلم"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+
+                      {teachers.length === 0 && (
+                        <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          <User size={32} className="mx-auto text-slate-300 mb-1" />
+                          <p className="text-slate-500 font-bold text-xs">لم يتم إضافة معلمين بعد</p>
+                          <p className="text-slate-400 text-[11px] mt-0.5">أدخل أسماء المعلمين يدوياً أو استوردهم من ملف إكسل</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: المواد الدراسية */}
+              {manualSetupStep === 2 && (
+                <div className="space-y-5 animate-in fade-in">
+                  <div>
+                    <h4 className="text-base font-bold text-slate-900">الخطوة الثانية: إدراج المواد الدراسية</h4>
+                    <p className="text-xs text-slate-500 font-medium">حدد المواد التي تدرسها المدرسة أو أضف مواد إضافية حسب احتياجك</p>
+                  </div>
+
+                  {/* Add Custom Subject Input */}
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="اسم مادة جديدة (مثال: تفكير ناقد، مهارات رقمية)..."
+                      value={newSubjectName}
+                      onChange={(e) => setNewSubjectName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddCustomSubject()}
+                      className="flex-1 p-3.5 bg-slate-50 rounded-2xl border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none font-bold text-sm"
+                    />
+                    <button 
+                      onClick={handleAddCustomSubject}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 rounded-2xl font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-indigo-100 text-xs"
+                    >
+                      <Plus size={16} /> إضافة مادة
+                    </button>
+                  </div>
+
+                  {/* Subjects Grid */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold text-slate-500">المواد الدراسية النشطة في المدرسة ({schoolSubjects.length})</span>
+                    <div className="flex flex-wrap gap-2 max-h-[40vh] overflow-y-auto p-1">
+                      {schoolSubjects.map(sub => (
+                        <div 
+                          key={sub}
+                          className="px-3.5 py-2 bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-xl font-bold text-xs flex items-center gap-2 shadow-sm"
+                        >
+                          <Bookmark size={13} className="text-indigo-600" />
+                          <span>{sub}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCustomSubject(sub)}
+                            className="text-indigo-400 hover:text-red-600 p-0.5 hover:bg-indigo-100 rounded transition-all"
+                            title="حذف المادة"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: الفصول ورواد الصف (Checkmark) */}
+              {manualSetupStep === 3 && (
+                <div className="space-y-5 animate-in fade-in">
+                  <div>
+                    <h4 className="text-base font-bold text-slate-900">الخطوة الثالثة: إدراج الفصول ورواد الصف</h4>
+                    <p className="text-xs text-slate-500 font-medium">أضف الفصول الدراسية وحدد رائد الصف لكل فصل (تشك مارك ✅)</p>
+                  </div>
+
+                  {/* Add Class Form */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1">اسم الفصل:</label>
+                        <input 
+                          type="text" 
+                          placeholder="مثال: أول ابتدائي / أ..."
+                          value={newClassName}
+                          onChange={(e) => setNewClassName(e.target.value)}
+                          className="w-full p-3 bg-white rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-bold text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1">رائد الفصل (اختياري):</label>
+                        <select
+                          value={newClassLeaderId}
+                          onChange={(e) => setNewClassLeaderId(e.target.value)}
+                          className="w-full p-3 bg-white rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-bold text-xs text-slate-700"
+                        >
+                          <option value="">-- بدون رائد فصل حالياً --</option>
+                          {teachers.map(t => (
+                            <option key={t.id} value={t.id}>أ. {t.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button 
+                        onClick={handleAddClassWithLeader}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-blue-100 text-xs"
+                      >
+                        <Plus size={16} /> إضافة الفصل
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Classes List */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold text-slate-500">الفصول المضافة ({classes.length})</span>
+                    <div className="max-h-[38vh] overflow-y-auto space-y-2.5 pr-1">
+                      {classes.map(c => {
+                        const leaderTeacher = teachers.find(t => (Array.isArray(t.leader_of) ? t.leader_of : []).includes(c.id));
+
+                        return (
+                          <div key={c.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-slate-900 text-sm">{c.name}</span>
+                              {leaderTeacher ? (
+                                <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                                  <CheckCircle2 size={15} className="text-emerald-600" />
+                                  <span>رائد الفصل: {leaderTeacher.name}</span>
+                                </span>
+                              ) : (
+                                <span className="bg-slate-200/70 text-slate-500 px-2.5 py-0.5 rounded-lg text-[11px] font-medium">
+                                  بدون رائد صف
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {/* Quick Change Class Leader */}
+                              <select
+                                value={leaderTeacher ? leaderTeacher.id : ''}
+                                onChange={(e) => handleSaveClassLeader(c.id, e.target.value)}
+                                className="p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                              >
+                                <option value="">-- تعيين رائد فصل --</option>
+                                {teachers.map(t => (
+                                  <option key={t.id} value={t.id}>أ. {t.name}</option>
+                                ))}
+                              </select>
+
+                              <button
+                                onClick={() => deleteClass(c.id)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                title="حذف الفصل"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {classes.length === 0 && (
+                        <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          <Users size={32} className="mx-auto text-slate-300 mb-1" />
+                          <p className="text-slate-500 font-bold text-xs">لم يتم إضافة فصول بعد</p>
+                          <p className="text-slate-400 text-[11px] mt-0.5">أدخل اسم الفصل ورائد الصف أعلاه واضغط إضافة</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 4: إعداد جدول الحصص الأسبوعي للفصول */}
+              {manualSetupStep === 4 && (
+                <div className="space-y-5 animate-in fade-in">
+                  <div>
+                    <h4 className="text-base font-bold text-slate-900">الخطوة الرابعة: ضبط وتعبئة جدول الحصص الأسبوعي</h4>
+                    <p className="text-xs text-slate-500 font-medium">اضغط على أي فصل لملء حصصه الأسبوعية وتعيين مواده من قائمة المواد المعرفة</p>
+                  </div>
+
+                  {classes.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[44vh] overflow-y-auto p-1">
+                      {classes.map(c => {
+                        const scheduledCount = Object.values(c.schedule || {}).filter(Boolean).length;
+                        const leaderTeacher = teachers.find(t => (Array.isArray(t.leader_of) ? t.leader_of : []).includes(c.id));
+
+                        return (
+                          <div 
+                            key={c.id}
+                            className="p-4 bg-slate-50 rounded-2xl border border-slate-200/90 hover:border-emerald-300 hover:bg-emerald-50/20 transition-all flex flex-col justify-between gap-3 group shadow-sm"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <h5 className="font-bold text-slate-900 text-base">{c.name}</h5>
+                                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-lg border ${
+                                  scheduledCount > 0 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                    : 'bg-slate-200 text-slate-600 border-slate-300'
+                                }`}>
+                                  {scheduledCount > 0 ? `${scheduledCount} حصة مضمّنة` : 'لم يُضبط بعد'}
+                                </span>
+                              </div>
+                              {leaderTeacher && (
+                                <p className="text-[11px] text-amber-700 font-bold flex items-center gap-1">
+                                  <ShieldCheck size={13} className="text-amber-600" />
+                                  رائد الفصل: {leaderTeacher.name}
+                                </p>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                setShowManualScheduleModal(false);
+                                openScheduleEditor(c);
+                              }}
+                              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-100 transition-all active:scale-95"
+                            >
+                              <Calendar size={15} />
+                              <span>📅 إعداد جدول ({c.name})</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                      <Users size={36} className="mx-auto text-slate-300 mb-2" />
+                      <p className="text-slate-600 font-bold text-sm">لا يوجد فصول دراسية</p>
+                      <p className="text-slate-400 text-xs mt-1 mb-4">يرجى الرجوع للخطوة 3 لإضافة الفصول أولاً</p>
+                      <button
+                        onClick={() => setManualSetupStep(3)}
+                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100"
+                      >
+                        العودة للخطوة 3 (إضافة الفصول)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+
+            {/* Stepper Footer Navigation */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+              <div>
+                {manualSetupStep > 1 ? (
+                  <button
+                    onClick={() => setManualSetupStep(prev => prev - 1)}
+                    className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5"
+                  >
+                    <span>السابق</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowManualScheduleModal(false)}
+                    className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-all"
+                  >
+                    إغلاق
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {manualSetupStep < 4 ? (
+                  <button
+                    onClick={() => setManualSetupStep(prev => prev + 1)}
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-indigo-100 flex items-center gap-1.5 active:scale-95"
+                  >
+                    <span>التالي</span>
+                    <span>←</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowManualScheduleModal(false)}
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-emerald-100 active:scale-95"
+                  >
+                    <span>✅ إنهاء وضبط الجداول</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Paste Teachers Modal */}
+      {showBulkPasteModal && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden" dir="rtl">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6 space-y-4 border border-slate-100">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h3 className="font-bold text-base text-slate-900">لصق قائمة أسماء المعلمين</h3>
+              <button 
+                onClick={() => setShowBulkPasteModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600"
               >
-                إغلاق
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              قم بلصق قائمة أسماء المعلمين في المربع أدناه (كل اسم في سطر مستقل):
+            </p>
+            <textarea
+              rows={8}
+              value={bulkTeachersText}
+              onChange={(e) => setBulkTeachersText(e.target.value)}
+              placeholder="محمد أحمد القحطاني&#10;خالد عبدالله العنزي&#10;سعد فهد الشمري..."
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold leading-relaxed outline-none focus:bg-white focus:border-indigo-500"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowBulkPasteModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleBulkAddTeachers}
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm"
+              >
+                إضافة كل الأسماء
               </button>
             </div>
           </div>
