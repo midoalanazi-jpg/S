@@ -46,6 +46,11 @@ const AdminView = () => {
   const [managementModalTab, setManagementModalTab] = useState(null); // 'classes' | 'teachers' | null
   const [editingTeacherObj, setEditingTeacherObj] = useState(null); // Teacher currently being edited/assigned
   const [showManualScheduleModal, setShowManualScheduleModal] = useState(false);
+  const [expandedTeacherId, setExpandedTeacherId] = useState(null);
+  const [inlineTeacherName, setInlineTeacherName] = useState('');
+  const [inlineAssignments, setInlineAssignments] = useState({});
+  const [inlineLeaderships, setInlineLeaderships] = useState([]);
+  const [isSavingInline, setIsSavingInline] = useState(false);
   const [assigningLeaderClass, setAssigningLeaderClass] = useState(null);
   const [selectedLeaderTeacherId, setSelectedLeaderTeacherId] = useState('');
   const [isSavingLeader, setIsSavingLeader] = useState(false);
@@ -523,6 +528,58 @@ const AdminView = () => {
       
       return { ...prev, [classId]: newSubjects };
     });
+  };
+
+  const toggleExpandTeacher = (teacher) => {
+    if (expandedTeacherId === teacher.id) {
+      setExpandedTeacherId(null);
+    } else {
+      setExpandedTeacherId(teacher.id);
+      setInlineTeacherName(teacher.name || '');
+      setInlineAssignments(teacher.assignments ? JSON.parse(JSON.stringify(teacher.assignments)) : {});
+      setInlineLeaderships(Array.isArray(teacher.leader_of) ? [...teacher.leader_of] : []);
+    }
+  };
+
+  const toggleInlineSubject = (classId, subject) => {
+    setInlineAssignments(prev => {
+      const current = prev[classId] || [];
+      const updated = current.includes(subject)
+        ? current.filter(s => s !== subject)
+        : [...current, subject];
+      return { ...prev, [classId]: updated };
+    });
+  };
+
+  const handleSaveInlineTeacher = async (teacherId) => {
+    if (!inlineTeacherName.trim()) {
+      alert('يرجى كتابة اسم المعلم');
+      return;
+    }
+    setIsSavingInline(true);
+    try {
+      const { data, error } = await supabase
+        .from('teachers')
+        .update({
+          name: inlineTeacherName.trim(),
+          assignments: inlineAssignments,
+          leader_of: inlineLeaderships
+        })
+        .eq('id', teacherId)
+        .select();
+
+      if (error) {
+        alert(`خطأ في الحفظ: ${error.message}`);
+      } else if (data && data[0]) {
+        setTeachers(prev => prev.map(t => t.id === teacherId ? data[0] : t));
+        setExpandedTeacherId(null);
+      }
+    } catch (err) {
+      console.error('Error saving inline teacher:', err);
+      alert(`خطأ: ${err.message || err}`);
+    } finally {
+      setIsSavingInline(false);
+    }
   };
 
   const deleteClass = async (id) => {
@@ -2064,7 +2121,7 @@ const AdminView = () => {
 
       {/* Add / Edit Teacher Modal Overlay */}
       {showTeacherModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden">
           <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-6 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
               <div>
@@ -2697,13 +2754,13 @@ const AdminView = () => {
                 </div>
               )}
 
-              {/* STEP 3: إسناد المواد للمعلمين */}
+              {/* STEP 3: إسناد المواد للمعلمين (Inline Expansion) */}
               {manualSetupStep === 3 && (
                 <div className="space-y-5 animate-in fade-in">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h4 className="text-base font-bold text-slate-900">الخطوة الثالثة: إسناد المواد للمعلمين</h4>
-                      <p className="text-xs text-slate-500 font-medium">حدد المواد والفصول المسندة لكل معلم لضبط الخطط وجداول الحصص</p>
+                      <p className="text-xs text-slate-500 font-medium">اضغط على "تعديل وإسناد المواد" لتعديل وتعيين المواد والفصول مباشرة من هذه الصفحة</p>
                     </div>
                     <button 
                       onClick={handleOpenAddTeacherModal}
@@ -2714,27 +2771,38 @@ const AdminView = () => {
                   </div>
 
                   {classes.length === 0 && (
-                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs leading-relaxed flex items-center justify-between gap-3">
-                      <span>💡 يمكنك تعديل وإسناد أسماء المعلمين الآن، ثم إدراج الفصول وتعيين الحصص في الخطوة 4.</span>
+                    <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-amber-800 text-xs leading-relaxed flex items-center justify-between gap-3">
+                      <span>💡 يمكنك تعديل أسماء المعلمين الآن، أو الانتقال للخطوة 4 لإدراج الفصول أولاً ثم إسناد المواد إليها.</span>
                       <button
                         onClick={() => setManualSetupStep(4)}
-                        className="px-3 py-1 bg-amber-600 text-white rounded-lg font-bold text-[11px] hover:bg-amber-700 transition-all shrink-0"
+                        className="px-3.5 py-1.5 bg-amber-600 text-white rounded-xl font-bold text-xs hover:bg-amber-700 transition-all shrink-0 shadow-sm"
                       >
                         إدراج الفصول أولاً ←
                       </button>
                     </div>
                   )}
 
-                  {/* Teachers List with Edit and Assignment */}
-                  <div className="space-y-2.5 max-h-[46vh] overflow-y-auto pr-1">
+                  {/* Teachers List with Inline Expansion */}
+                  <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
                     {teachers.map(t => {
+                      const isExpanded = expandedTeacherId === t.id;
                       const assignmentsCount = Object.values(t.assignments || {}).reduce((acc, subs) => acc + (Array.isArray(subs) ? subs.length : 0), 0);
 
                       return (
-                        <div key={t.id} className="p-4 bg-slate-50 hover:bg-white rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all space-y-2.5">
+                        <div 
+                          key={t.id} 
+                          className={`rounded-2xl border transition-all ${
+                            isExpanded 
+                              ? 'bg-indigo-50/40 border-indigo-300 shadow-md ring-2 ring-indigo-100' 
+                              : 'bg-slate-50 hover:bg-white border-slate-200 hover:border-indigo-200'
+                          } p-4 space-y-3`}
+                        >
+                          {/* Card Top Row */}
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2.5">
-                              <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm shrink-0">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
+                                isExpanded ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600'
+                              }`}>
                                 <User size={18} />
                               </div>
                               <div>
@@ -2750,11 +2818,15 @@ const AdminView = () => {
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
-                                onClick={() => handleOpenEditTeacherModal(t)}
-                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
+                                onClick={() => toggleExpandTeacher(t)}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 ${
+                                  isExpanded
+                                    ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                                    : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'
+                                }`}
                               >
                                 <Edit2 size={13} />
-                                <span>تعديل وإسناد المواد</span>
+                                <span>{isExpanded ? 'إخفاء الإسناد ▲' : 'تعديل وإسناد المواد ▼'}</span>
                               </button>
                               <button
                                 onClick={() => deleteTeacher(t.id)}
@@ -2766,30 +2838,134 @@ const AdminView = () => {
                             </div>
                           </div>
 
-                          {/* Assigned Classes and Subjects Tags */}
-                          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200/60">
-                            {Object.keys(t.assignments || {}).map(cid => {
-                              const cls = classes.find(c => c.id === cid);
-                              const assignedSubjects = t.assignments[cid] || [];
-                              if (!cls || assignedSubjects.length === 0) return null;
-                              return (
-                                <div key={cid} className="flex items-center gap-1 bg-indigo-50/80 border border-indigo-100 rounded-lg px-2 py-0.5">
-                                  <span className="text-[11px] font-bold text-indigo-700">{cls.name}:</span>
-                                  <div className="flex gap-1">
-                                    {assignedSubjects.map(s => (
-                                      <span key={s} className="text-[10px] bg-white text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 font-medium">#{s}</span>
+                          {/* EXPANDED INLINE ASSIGNMENT VIEW */}
+                          {isExpanded ? (
+                            <div className="space-y-4 pt-3 border-t border-indigo-100 animate-in fade-in duration-200">
+                              {/* Edit Name Input */}
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-700">اسم المعلم:</label>
+                                <input
+                                  type="text"
+                                  value={inlineTeacherName}
+                                  onChange={(e) => setInlineTeacherName(e.target.value)}
+                                  placeholder="اسم المعلم..."
+                                  className="w-full p-3 bg-white rounded-xl border border-indigo-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none font-bold text-sm"
+                                />
+                              </div>
+
+                              {/* Classes & Subject Assignment Matrix */}
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-700 block">إسناد المواد حسب الفصول:</label>
+                                {classes.length > 0 ? (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {classes.map(cls => (
+                                      <div 
+                                        key={cls.id} 
+                                        className={`p-3.5 bg-white rounded-2xl border transition-all ${
+                                          (inlineAssignments[cls.id]?.length > 0)
+                                            ? 'border-indigo-400 bg-indigo-50/20 shadow-xs' 
+                                            : 'border-slate-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between mb-2.5">
+                                          <div className="flex items-center gap-2">
+                                            <Layout size={15} className="text-indigo-600" />
+                                            <span className="font-bold text-slate-800 text-xs">{cls.name}</span>
+                                          </div>
+                                          <label className="text-[11px] font-bold text-indigo-600 cursor-pointer flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100">
+                                            <input 
+                                              type="checkbox"
+                                              checked={inlineLeaderships.includes(cls.id)}
+                                              onChange={(e) => {
+                                                if (e.target.checked) {
+                                                  setInlineLeaderships([...inlineLeaderships, cls.id]);
+                                                } else {
+                                                  setInlineLeaderships(inlineLeaderships.filter(id => id !== cls.id));
+                                                }
+                                              }}
+                                              className="w-3 h-3 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                                            />
+                                            <span>رائد الفصل</span>
+                                          </label>
+                                        </div>
+
+                                        {/* Subject Pills */}
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {schoolSubjects.map(sub => {
+                                            const isSelected = inlineAssignments[cls.id]?.includes(sub);
+                                            return (
+                                              <button
+                                                key={sub}
+                                                type="button"
+                                                onClick={() => toggleInlineSubject(cls.id, sub)}
+                                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                                                  isSelected
+                                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs scale-105'
+                                                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-white'
+                                                }`}
+                                              >
+                                                {sub}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
                                     ))}
                                   </div>
-                                </div>
-                              );
-                            })}
+                                ) : (
+                                  <div className="p-4 bg-white border border-dashed border-slate-300 rounded-xl text-center">
+                                    <p className="text-xs text-slate-500 font-bold">لا توجد فصول حالياً لإسناد المواد إليها</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">يمكنك حفظ اسم المعلم الآن وإدراج الفصول في الخطوة 4</p>
+                                  </div>
+                                )}
+                              </div>
 
-                            {assignmentsCount === 0 && (
-                              <span className="text-[11px] text-slate-400 font-medium italic">
-                                لم يتم إسناد مواد لهذا المعلم بعد — اضغط "تعديل وإسناد المواد" للتعيين
-                              </span>
-                            )}
-                          </div>
+                              {/* Save & Cancel Actions */}
+                              <div className="flex justify-end gap-2 pt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedTeacherId(null)}
+                                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all"
+                                >
+                                  إلغاء
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveInlineTeacher(t.id)}
+                                  disabled={isSavingInline}
+                                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-100 flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                                >
+                                  <CheckCircle2 size={14} />
+                                  <span>{isSavingInline ? 'جاري الحفظ...' : 'حفظ التعديلات والإسناد'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* COLLAPSED VIEW (Tags) */
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200/60">
+                              {Object.keys(t.assignments || {}).map(cid => {
+                                const cls = classes.find(c => c.id === cid);
+                                const assignedSubjects = t.assignments[cid] || [];
+                                if (!cls || assignedSubjects.length === 0) return null;
+                                return (
+                                  <div key={cid} className="flex items-center gap-1 bg-indigo-50/80 border border-indigo-100 rounded-lg px-2 py-0.5">
+                                    <span className="text-[11px] font-bold text-indigo-700">{cls.name}:</span>
+                                    <div className="flex gap-1">
+                                      {assignedSubjects.map(s => (
+                                        <span key={s} className="text-[10px] bg-white text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 font-medium">#{s}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {assignmentsCount === 0 && (
+                                <span className="text-[11px] text-slate-400 font-medium italic">
+                                  لم يتم إسناد مواد لهذا المعلم بعد — اضغط "تعديل وإسناد المواد ▼" للتعيين
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
