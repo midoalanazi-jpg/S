@@ -2535,8 +2535,8 @@ const AdminView = () => {
                 }`}
               >
                 <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px]">3</span>
-                <Edit2 size={14} />
-                <span>ثالثاً: إسناد المواد للمعلمين ({teachers.length})</span>
+                <Users size={14} />
+                <span>ثالثاً: الفصول ورواد الصف ({classes.length})</span>
               </button>
 
               <span className="text-slate-300">←</span>
@@ -2550,8 +2550,8 @@ const AdminView = () => {
                 }`}
               >
                 <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px]">4</span>
-                <Users size={14} />
-                <span>رابعاً: الفصول ورواد الصف ({classes.length})</span>
+                <Edit2 size={14} />
+                <span>رابعاً: إسناد المواد للمعلمين ({teachers.length})</span>
               </button>
 
               <span className="text-slate-300">←</span>
@@ -2754,12 +2754,118 @@ const AdminView = () => {
                 </div>
               )}
 
-              {/* STEP 3: إسناد المواد للمعلمين (Inline Expansion) */}
+              {/* STEP 3: الفصول ورواد الصف (Checkmark) */}
               {manualSetupStep === 3 && (
+                <div className="space-y-5 animate-in fade-in">
+                  <div>
+                    <h4 className="text-base font-bold text-slate-900">الخطوة الثالثة: إدراج الفصول ورواد الصف</h4>
+                    <p className="text-xs text-slate-500 font-medium">أضف الفصول الدراسية وحدد رائد الصف لكل فصل (تشك مارك ✅)</p>
+                  </div>
+
+                  {/* Add Class Form */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1">اسم الفصل:</label>
+                        <input 
+                          type="text" 
+                          placeholder="مثال: أول ابتدائي / أ..."
+                          value={newClassName}
+                          onChange={(e) => setNewClassName(e.target.value)}
+                          className="w-full p-3 bg-white rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-bold text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1">رائد الفصل (اختياري):</label>
+                        <select
+                          value={newClassLeaderId}
+                          onChange={(e) => setNewClassLeaderId(e.target.value)}
+                          className="w-full p-3 bg-white rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-bold text-xs text-slate-700"
+                        >
+                          <option value="">-- بدون رائد فصل حالياً --</option>
+                          {teachers.map(t => (
+                            <option key={t.id} value={t.id}>أ. {t.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button 
+                        onClick={handleAddClassWithLeader}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-blue-100 text-xs"
+                      >
+                        <Plus size={16} /> إضافة الفصل
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Classes List */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold text-slate-500">الفصول المضافة ({classes.length})</span>
+                    <div className="max-h-[38vh] overflow-y-auto space-y-2.5 pr-1">
+                      {classes.map(c => {
+                        const leaderTeacher = teachers.find(t => (Array.isArray(t.leader_of) ? t.leader_of : []).includes(c.id));
+
+                        return (
+                          <div key={c.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-slate-900 text-sm">{c.name}</span>
+                              {leaderTeacher ? (
+                                <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                                  <CheckCircle2 size={15} className="text-emerald-600" />
+                                  <span>رائد الفصل: {leaderTeacher.name}</span>
+                                </span>
+                              ) : (
+                                <span className="bg-slate-200/70 text-slate-500 px-2.5 py-0.5 rounded-lg text-[11px] font-medium">
+                                  بدون رائد صف
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {/* Quick Change Class Leader */}
+                              <select
+                                value={leaderTeacher ? leaderTeacher.id : ''}
+                                onChange={(e) => handleSaveClassLeader(c.id, e.target.value)}
+                                className="p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                              >
+                                <option value="">-- تعيين رائد فصل --</option>
+                                {teachers.map(t => (
+                                  <option key={t.id} value={t.id}>أ. {t.name}</option>
+                                ))}
+                              </select>
+
+                              <button
+                                onClick={() => deleteClass(c.id)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                title="حذف الفصل"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {classes.length === 0 && (
+                        <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          <Users size={32} className="mx-auto text-slate-300 mb-1" />
+                          <p className="text-slate-500 font-bold text-xs">لم يتم إضافة فصول بعد</p>
+                          <p className="text-slate-400 text-[11px] mt-0.5">أدخل اسم الفصل ورائد الصف أعلاه واضغط إضافة</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 4: إسناد المواد للمعلمين (Inline Expansion) */}
+              {manualSetupStep === 4 && (
                 <div className="space-y-5 animate-in fade-in">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h4 className="text-base font-bold text-slate-900">الخطوة الثالثة: إسناد المواد للمعلمين</h4>
+                      <h4 className="text-base font-bold text-slate-900">الخطوة الرابعة: إسناد المواد للمعلمين</h4>
                       <p className="text-xs text-slate-500 font-medium">اضغط على "تعديل وإسناد المواد" لتعديل وتعيين المواد والفصول مباشرة من هذه الصفحة</p>
                     </div>
                     <button 
@@ -2772,12 +2878,12 @@ const AdminView = () => {
 
                   {classes.length === 0 && (
                     <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-amber-800 text-xs leading-relaxed flex items-center justify-between gap-3">
-                      <span>💡 يمكنك تعديل أسماء المعلمين الآن، أو الانتقال للخطوة 4 لإدراج الفصول أولاً ثم إسناد المواد إليها.</span>
+                      <span>⚠️ لا توجد فصول مضافة بعد. يرجى الرجوع للخطوة 3 لإضافة الفصول حتى تتمكن من إسناد المواد إليها.</span>
                       <button
-                        onClick={() => setManualSetupStep(4)}
+                        onClick={() => setManualSetupStep(3)}
                         className="px-3.5 py-1.5 bg-amber-600 text-white rounded-xl font-bold text-xs hover:bg-amber-700 transition-all shrink-0 shadow-sm"
                       >
-                        إدراج الفصول أولاً ←
+                        الرجوع للخطوة 3 (الفصول) ←
                       </button>
                     </div>
                   )}
@@ -2915,7 +3021,7 @@ const AdminView = () => {
                                 ) : (
                                   <div className="p-4 bg-white border border-dashed border-slate-300 rounded-xl text-center">
                                     <p className="text-xs text-slate-500 font-bold">لا توجد فصول حالياً لإسناد المواد إليها</p>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">يمكنك حفظ اسم المعلم الآن وإدراج الفصول في الخطوة 4</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">يرجى الرجوع للخطوة 3 لإضافة الفصول أولاً</p>
                                   </div>
                                 )}
                               </div>
@@ -2986,112 +3092,6 @@ const AdminView = () => {
                 </div>
               )}
 
-              {/* STEP 4: الفصول ورواد الصف (Checkmark) */}
-              {manualSetupStep === 4 && (
-                <div className="space-y-5 animate-in fade-in">
-                  <div>
-                    <h4 className="text-base font-bold text-slate-900">الخطوة الرابعة: إدراج الفصول ورواد الصف</h4>
-                    <p className="text-xs text-slate-500 font-medium">أضف الفصول الدراسية وحدد رائد الصف لكل فصل (تشك مارك ✅)</p>
-                  </div>
-
-                  {/* Add Class Form */}
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs font-bold text-slate-700 block mb-1">اسم الفصل:</label>
-                        <input 
-                          type="text" 
-                          placeholder="مثال: أول ابتدائي / أ..."
-                          value={newClassName}
-                          onChange={(e) => setNewClassName(e.target.value)}
-                          className="w-full p-3 bg-white rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-bold text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-700 block mb-1">رائد الفصل (اختياري):</label>
-                        <select
-                          value={newClassLeaderId}
-                          onChange={(e) => setNewClassLeaderId(e.target.value)}
-                          className="w-full p-3 bg-white rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-bold text-xs text-slate-700"
-                        >
-                          <option value="">-- بدون رائد فصل حالياً --</option>
-                          {teachers.map(t => (
-                            <option key={t.id} value={t.id}>أ. {t.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end">
-                      <button 
-                        onClick={handleAddClassWithLeader}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-blue-100 text-xs"
-                      >
-                        <Plus size={16} /> إضافة الفصل
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Classes List */}
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold text-slate-500">الفصول المضافة ({classes.length})</span>
-                    <div className="max-h-[38vh] overflow-y-auto space-y-2.5 pr-1">
-                      {classes.map(c => {
-                        const leaderTeacher = teachers.find(t => (Array.isArray(t.leader_of) ? t.leader_of : []).includes(c.id));
-
-                        return (
-                          <div key={c.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                              <span className="font-bold text-slate-900 text-sm">{c.name}</span>
-                              {leaderTeacher ? (
-                                <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm">
-                                  <CheckCircle2 size={15} className="text-emerald-600" />
-                                  <span>رائد الفصل: {leaderTeacher.name}</span>
-                                </span>
-                              ) : (
-                                <span className="bg-slate-200/70 text-slate-500 px-2.5 py-0.5 rounded-lg text-[11px] font-medium">
-                                  بدون رائد صف
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              {/* Quick Change Class Leader */}
-                              <select
-                                value={leaderTeacher ? leaderTeacher.id : ''}
-                                onChange={(e) => handleSaveClassLeader(c.id, e.target.value)}
-                                className="p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
-                              >
-                                <option value="">-- تعيين رائد فصل --</option>
-                                {teachers.map(t => (
-                                  <option key={t.id} value={t.id}>أ. {t.name}</option>
-                                ))}
-                              </select>
-
-                              <button
-                                onClick={() => deleteClass(c.id)}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                                title="حذف الفصل"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {classes.length === 0 && (
-                        <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                          <Users size={32} className="mx-auto text-slate-300 mb-1" />
-                          <p className="text-slate-500 font-bold text-xs">لم يتم إضافة فصول بعد</p>
-                          <p className="text-slate-400 text-[11px] mt-0.5">أدخل اسم الفصل ورائد الصف أعلاه واضغط إضافة</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* STEP 5: إعداد جدول الحصص الأسبوعي للفصول */}
               {manualSetupStep === 5 && (
                 <div className="space-y-5 animate-in fade-in">
@@ -3148,12 +3148,12 @@ const AdminView = () => {
                     <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
                       <Users size={36} className="mx-auto text-slate-300 mb-2" />
                       <p className="text-slate-600 font-bold text-sm">لا يوجد فصول دراسية</p>
-                      <p className="text-slate-400 text-xs mt-1 mb-4">يرجى الرجوع للخطوة 4 لإضافة الفصول أولاً</p>
+                      <p className="text-slate-400 text-xs mt-1 mb-4">يرجى الرجوع للخطوة 3 لإضافة الفصول أولاً</p>
                       <button
-                        onClick={() => setManualSetupStep(4)}
+                        onClick={() => setManualSetupStep(3)}
                         className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100"
                       >
-                        العودة للخطوة 4 (إضافة الفصول)
+                        العودة للخطوة 3 (إضافة الفصول)
                       </button>
                     </div>
                   )}
