@@ -941,22 +941,22 @@ function TeacherView() {
         {/* Schedule Table Container - Unified Structure: Rows = Days, Columns = Periods */}
         <div className={`w-full max-w-7xl mx-auto transition-all duration-300 ${
           isRotated 
-            ? 'py-4 flex items-center justify-center min-h-[740px] sm:min-h-[780px] md:min-h-0 md:py-0 overflow-hidden' 
+            ? 'py-2 sm:py-4 flex items-center justify-center min-h-[680px] sm:min-h-[740px] md:min-h-0 md:py-0 overflow-hidden' 
             : 'overflow-x-auto'
         }`}>
           <div className={`bg-white shadow-sm border border-slate-200 md:border-slate-100 transition-all duration-300 ${
             isRotated 
-              ? 'w-[730px] max-w-[86vh] h-[330px] max-h-[90vw] transform rotate-90 origin-center rounded-2xl shrink-0 my-auto md:transform-none md:w-full md:max-w-none md:h-auto md:max-h-none md:rounded-[2.5rem]' 
-              : 'w-full min-w-[780px] rounded-2xl md:rounded-[2.5rem]'
+              ? 'w-[640px] sm:w-[700px] max-w-[88vh] h-[370px] max-h-[94vw] transform rotate-90 origin-center rounded-2xl shrink-0 my-auto md:transform-none md:w-full md:max-w-none md:h-auto md:max-h-none md:rounded-[2.5rem]' 
+              : 'w-full min-w-[560px] sm:min-w-[660px] md:min-w-[780px] rounded-2xl md:rounded-[2.5rem]'
           } overflow-hidden`}>
             <table className="w-full h-full border-collapse table-fixed text-center">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="p-2 md:p-5 border-b border-l border-slate-100 text-slate-400 font-bold text-[10px] md:text-xs w-24 md:w-32 text-right">
+                  <th className="p-1.5 sm:p-2 md:p-4 border-b border-l border-slate-100 text-slate-500 font-bold text-[10px] sm:text-xs md:text-xs w-16 sm:w-20 md:w-28 text-center sm:text-right">
                     اليوم \ الحصة
                   </th>
                   {PERIODS.map(period => (
-                    <th key={period} className="p-2 md:p-5 border-b border-l border-slate-100 last:border-l-0 text-slate-900 font-bold text-center text-[10px] md:text-sm">
+                    <th key={period} className="p-1.5 sm:p-2 md:p-4 border-b border-l border-slate-100 last:border-l-0 text-slate-900 font-bold text-center text-[10px] sm:text-xs md:text-sm">
                       الحصة {period}
                     </th>
                   ))}
@@ -964,8 +964,8 @@ function TeacherView() {
               </thead>
               <tbody>
                 {DAYS.map(day => (
-                  <tr key={day.id} className="hover:bg-slate-50/30 transition-all group border-b border-slate-50 last:border-b-0">
-                    <td className="p-2 md:p-4 border-l border-slate-50 text-right font-bold text-indigo-600 bg-slate-50/30 text-[10px] md:text-sm">
+                  <tr key={day.id} className="hover:bg-slate-50/30 transition-all group border-b border-slate-100/70 last:border-b-0">
+                    <td className="p-1 sm:p-2 md:p-3 border-l border-slate-100 text-center sm:text-right font-bold text-indigo-700 bg-slate-50/60 text-[11px] sm:text-xs md:text-sm">
                       {day.name}
                     </td>
                     {PERIODS.map(period => {
@@ -977,42 +977,42 @@ function TeacherView() {
                         <td 
                           key={period} 
                           onClick={() => slotInfo && toggleCellSelection(day.id, period, slotInfo)}
-                          className={`p-1.5 md:p-2.5 border-l border-slate-100 last:border-l-0 transition-all relative min-h-[60px] md:h-32 align-top ${
+                          className={`p-1 sm:p-1.5 md:p-2 border-l border-slate-100 last:border-l-0 transition-all relative min-h-[48px] sm:min-h-[56px] md:h-32 align-top ${
                             slotInfo 
                             ? `cursor-pointer ${
                                 isSelected 
-                                  ? 'bg-indigo-100/80 ring-2 ring-inset ring-indigo-500 z-10' 
+                                  ? 'bg-indigo-100/90 ring-2 ring-inset ring-indigo-500 z-10' 
                                   : 'hover:bg-indigo-50/60 active:bg-indigo-100'
                               }` 
-                            : 'bg-gray-50/40 opacity-30 cursor-not-allowed'
+                            : 'bg-gray-50/30 opacity-30 cursor-not-allowed'
                           }`}
                         >
-                          <div className="flex flex-col h-full justify-between select-none gap-1">
+                          <div className="flex flex-col h-full justify-between select-none gap-0.5 sm:gap-1">
                             {isSelected && (
-                              <div className="absolute top-1 left-1 bg-indigo-600 text-white rounded-full p-0.5 shadow-md z-20">
-                                <CheckCircle2 size={12} className="md:w-3.5 md:h-3.5" />
+                              <div className="absolute top-0.5 left-0.5 sm:top-1 sm:left-1 bg-indigo-600 text-white rounded-full p-0.5 shadow-md z-20">
+                                <CheckCircle2 size={11} className="sm:w-3 sm:h-3 md:w-3.5 md:h-3.5" />
                               </div>
                             )}
                             {slotInfo && (
-                              <div className="bg-indigo-50/90 border border-indigo-100/90 rounded-lg md:rounded-xl px-1.5 py-1 flex flex-col items-center justify-center text-center shadow-xs">
-                                <span className="text-xs md:text-sm font-black text-indigo-900 tracking-tight leading-tight truncate max-w-full">
+                              <div className="bg-indigo-50 border border-indigo-100/90 rounded-md sm:rounded-lg md:rounded-xl px-1 py-0.5 sm:px-1.5 sm:py-1 flex flex-col items-center justify-center text-center shadow-xs">
+                                <span className="text-[11px] sm:text-xs md:text-sm font-black text-indigo-900 tracking-tight leading-tight truncate max-w-full">
                                   {slotInfo.subject}
                                 </span>
-                                <span className="text-[10px] md:text-xs font-bold text-indigo-600 mt-0.5 truncate max-w-full">
+                                <span className="text-[9px] sm:text-[10px] md:text-xs font-bold text-indigo-600 mt-0.5 truncate max-w-full">
                                   {slotInfo.className}
                                 </span>
                               </div>
                             )}
                             
                             {cellData?.title ? (
-                              <div className="bg-emerald-50/90 p-1 md:p-2 rounded-lg md:rounded-xl border border-emerald-200 text-right shadow-xs mt-auto">
-                                <p className="font-extrabold text-emerald-950 text-[10px] md:text-xs line-clamp-1 leading-snug">{cellData.title}</p>
+                              <div className="bg-emerald-50/95 p-1 sm:p-1.5 md:p-2 rounded-md sm:rounded-lg md:rounded-xl border border-emerald-200 text-right shadow-xs mt-auto">
+                                <p className="font-extrabold text-emerald-950 text-[9px] sm:text-[10px] md:text-xs line-clamp-1 leading-snug">{cellData.title}</p>
                                 <p className="hidden md:block text-[9px] md:text-[10px] text-emerald-700 line-clamp-1 font-medium mt-0.5">{cellData.objective}</p>
                               </div>
                             ) : slotInfo ? (
-                              <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all mt-auto py-1">
-                                 <div className="p-1 md:p-1.5 bg-indigo-100 rounded-full text-indigo-600 shadow-xs">
-                                   <Plus size={12} className="md:w-4 md:h-4" />
+                              <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all mt-auto py-0.5 sm:py-1">
+                                 <div className="p-0.5 sm:p-1 md:p-1.5 bg-indigo-100 rounded-full text-indigo-600 shadow-xs">
+                                   <Plus size={10} className="sm:w-3 sm:h-3 md:w-4 md:h-4" />
                                  </div>
                               </div>
                             ) : null}
