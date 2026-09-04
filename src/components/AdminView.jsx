@@ -56,6 +56,55 @@ const AdminView = () => {
   const [isSavingLeader, setIsSavingLeader] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  // Admin notes for weekly plan export
+  const [exportNotes, setExportNotes] = useState(() => {
+    try {
+      return localStorage.getItem('admin_export_notes') || '';
+    } catch {
+      return '';
+    }
+  });
+  // 'all' means all classes, or an array of class IDs
+  const [noteClassesMode, setNoteClassesMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('admin_note_classes_mode');
+      return saved ? JSON.parse(saved) : 'all';
+    } catch {
+      return 'all';
+    }
+  });
+  const [showNoteClassPicker, setShowNoteClassPicker] = useState(false);
+  const noteClassPickerRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('admin_export_notes', exportNotes);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [exportNotes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('admin_note_classes_mode', JSON.stringify(noteClassesMode));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [noteClassesMode]);
+
+  // Close class picker on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (noteClassPickerRef.current && !noteClassPickerRef.current.contains(e.target)) {
+        setShowNoteClassPicker(false);
+      }
+    };
+    if (showNoteClassPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showNoteClassPicker]);
+
   // School & Principal Info State
   const [showSchoolInfoModal, setShowSchoolInfoModal] = useState(false);
   const [principalName, setPrincipalName] = useState('');
@@ -1186,6 +1235,125 @@ const AdminView = () => {
           </div>
         </div>
 
+        {/* خانة الملاحظات المباشرة مع زر تخصيص الفصول */}
+        <div className="space-y-1.5 pt-1">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-bold opacity-90 mr-1 flex items-center gap-1.5">
+              <span>📝</span>
+              <span>ملاحظات الإدارة للخطة الأسبوعية</span>
+              <span className="text-[9.5px] opacity-70 font-normal">(تظهر تلقائياً في أسفل صفحة التصدير والطباعة)</span>
+            </label>
+
+            {/* زر تحديد الفصول المشمولة */}
+            <div className="relative" ref={noteClassPickerRef}>
+              <button
+                type="button"
+                onClick={() => setShowNoteClassPicker(!showNoteClassPicker)}
+                className="flex items-center gap-1.5 px-3 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-bold transition-all border border-white/20 active:scale-95 shadow-sm"
+              >
+                <span>🏷️</span>
+                <span>
+                  {noteClassesMode === 'all' 
+                    ? 'جميع الفصول' 
+                    : `${Array.isArray(noteClassesMode) ? noteClassesMode.length : 0} فصول محددة`}
+                </span>
+                <span className="text-[10px] opacity-70">▾</span>
+              </button>
+
+              {/* القائمة المنبثقة لاختيار الفصول بـ Checkbox */}
+              {showNoteClassPicker && (
+                <div className="absolute left-0 top-full mt-2 w-72 bg-white text-slate-800 rounded-2xl shadow-2xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                    <span className="text-xs font-bold text-slate-700">تطبيق الملاحظة على:</span>
+                    <button
+                      type="button"
+                      onClick={() => setNoteClassesMode('all')}
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-md transition-all ${noteClassesMode === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                      جميع الفصول
+                    </button>
+                  </div>
+
+                  <div className="max-h-52 overflow-y-auto space-y-1.5 pr-0.5 pl-1 custom-scrollbar">
+                    {classes.map(cls => {
+                      const isSelected = noteClassesMode === 'all' || (Array.isArray(noteClassesMode) && noteClassesMode.includes(cls.id));
+                      return (
+                        <label 
+                          key={cls.id} 
+                          className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors select-none text-xs font-semibold"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                if (noteClassesMode === 'all') {
+                                  // إذا كان الكل مفعل وألغى أو ضغط، لا نغير إلا لو حددنا يدوياً
+                                } else {
+                                  const updated = [...(Array.isArray(noteClassesMode) ? noteClassesMode : []), cls.id];
+                                  if (updated.length === classes.length) {
+                                    setNoteClassesMode('all');
+                                  } else {
+                                    setNoteClassesMode(updated);
+                                  }
+                                }
+                              } else {
+                                if (noteClassesMode === 'all') {
+                                  // استثناء هذا الفصل والاحتفاظ بالباقي
+                                  const remaining = classes.filter(c => c.id !== cls.id).map(c => c.id);
+                                  setNoteClassesMode(remaining);
+                                } else {
+                                  const remaining = (Array.isArray(noteClassesMode) ? noteClassesMode : []).filter(id => id !== cls.id);
+                                  setNoteClassesMode(remaining);
+                                }
+                              }
+                            }}
+                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600"
+                          />
+                          <span className="text-slate-800">{cls.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between text-[10.5px] text-slate-400">
+                    <span>
+                      {noteClassesMode === 'all' ? `مفعلة لكافة فصول المدرسة (${classes.length})` : `مفعلة لـ ${Array.isArray(noteClassesMode) ? noteClassesMode.length : 0} فصل`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowNoteClassPicker(false)}
+                      className="font-bold text-blue-600 hover:text-blue-700"
+                    >
+                      تم
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="relative flex items-center">
+            <input
+              type="text"
+              value={exportNotes}
+              onChange={(e) => setExportNotes(e.target.value)}
+              placeholder="اكتب ملاحظات الإدارة هنا (مثال: نرجو متابعة الواجبات يومياً، أو الاختبارات يوم الأربعاء...)"
+              className="w-full p-3.5 bg-white/10 border border-white/20 rounded-2xl font-bold focus:ring-2 focus:ring-white outline-none placeholder:text-white/50 text-sm shadow-inner"
+            />
+            {exportNotes && (
+              <button
+                type="button"
+                onClick={() => setExportNotes('')}
+                className="absolute left-3 p-1 rounded-full hover:bg-white/20 text-white/70 hover:text-white text-xs transition-colors"
+                title="مسح الملاحظة"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button 
             disabled={!exportConfig.classId}
@@ -2103,9 +2271,24 @@ const AdminView = () => {
               </table>
 
               {/* Footer */}
-              <div className="mt-2 border border-[#2b4c7e] p-2 rounded-xl">
-                <p className="font-bold text-[10px]">ملاحظات: ....................................................................................................................................................................................................................................................</p>
-              </div>
+              {(() => {
+                const isNoteApplied = exportNotes && (
+                  noteClassesMode === 'all' || 
+                  (Array.isArray(noteClassesMode) && noteClassesMode.includes(data.id))
+                );
+                return (
+                  <div className="mt-2 border border-[#2b4c7e] p-2 rounded-xl text-right">
+                    <p className="font-bold text-[10px] leading-relaxed">
+                      <span className="text-[#2b4c7e] font-black">ملاحظات: </span>
+                      {isNoteApplied ? (
+                        <span className="font-bold text-slate-900">{exportNotes}</span>
+                      ) : (
+                        <span>....................................................................................................................................................................................................................................................</span>
+                      )}
+                    </p>
+                  </div>
+                );
+              })()}
 
               <div className="mt-2 text-center text-[10px] font-bold text-slate-700 space-y-2">
                 <p>جوال المدرسة: {schoolPhone || '.........................'}</p>
