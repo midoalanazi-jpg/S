@@ -4,7 +4,8 @@ import {
   Plus, Trash2, Save, Download, Upload,
   User, Users, ChevronRight, FileText, CheckCircle2,
   Calendar, X, Layout, KeyRound, Lock, Eye, EyeOff, ShieldCheck, Search, Edit2, RotateCcw,
-  Star, Bookmark, Smartphone, Monitor, Check, Sparkles, RefreshCw, Home, Share2, Copy, School
+  Star, Bookmark, Smartphone, Monitor, Check, Sparkles, RefreshCw, Home, Share2, Copy, School,
+  Clock, AlertTriangle
 } from 'lucide-react';
 import HijriDatePicker from '@mk01/react-hijri-date-picker';
 import * as XLSX from 'xlsx';
@@ -131,6 +132,13 @@ const AdminView = () => {
   const [editingPasswordVal, setEditingPasswordVal] = useState('');
   const [passwordSearchQuery, setPasswordSearchQuery] = useState('');
 
+  // Monitoring & Plans Reset State
+  const [showMonitoringModal, setShowMonitoringModal] = useState(false);
+  const [monitoringSearchQuery, setMonitoringSearchQuery] = useState('');
+  const [isClearingAllPlans, setIsClearingAllPlans] = useState(false);
+  const [clearingTeacherPlanId, setClearingTeacherPlanId] = useState(null);
+  const [teacherLastLogins, setTeacherLastLogins] = useState({});
+
   // Nessaby Import State
   const [importPreviewData, setImportPreviewData] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -206,6 +214,7 @@ const AdminView = () => {
       const { data: schoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
 
       let passwordsObj = {};
+      let lastLoginsObj = {};
       let savedPin = '';
 
       if (schoolRecord) {
@@ -214,6 +223,7 @@ const AdminView = () => {
         if (schoolRecord.settings) {
           const s = schoolRecord.settings;
           if (s.teacher_passwords) passwordsObj = s.teacher_passwords;
+          if (s.teacher_last_logins) lastLoginsObj = s.teacher_last_logins;
           setPrincipalName(s.principal_name || '');
           setEducationDept(s.education_dept || '');
           setSchoolGender(s.school_gender || 'boys');
@@ -241,6 +251,7 @@ const AdminView = () => {
       setTeachers(tchData || []);
       setWeeklyPlans(plansData || []);
       setTeacherPasswords(passwordsObj || {});
+      setTeacherLastLogins(lastLoginsObj || {});
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -467,6 +478,113 @@ const AdminView = () => {
       console.error('Error resetting password:', err);
       alert('حدث خطأ في مسح كلمة المرور');
     }
+  };
+
+  // تصفير جميع الخطط الأسبوعية
+  const handleClearAllPlans = async () => {
+    if (window.confirm(`⚠️ تحذير هام:\nهل أنت متأكد من رغبتك في تصفير (مسح) جميع الخطط الأسبوعية المكتوبة لكافة المعلمين؟\nلا يمكن التراجع عن هذا الإجراء.`)) {
+      setIsClearingAllPlans(true);
+      try {
+        const { error } = await supabase
+          .from('weekly_plans')
+          .delete()
+          .eq('school_phone', currentSchoolPhone);
+
+        if (error) {
+          console.error('Error clearing all weekly plans:', error);
+          alert(`❌ حدث خطأ أثناء تصفير الخطط: ${error.message || JSON.stringify(error)}`);
+        } else {
+          setWeeklyPlans([]);
+          alert('✅ تم تصفير ومسح جميع الخطط الأسبوعية بنجاح!');
+        }
+      } catch (err) {
+        console.error('Unexpected error clearing plans:', err);
+        alert(`❌ حدث خطأ غير متوقع: ${err.message || err}`);
+      } finally {
+        setIsClearingAllPlans(false);
+      }
+    }
+  };
+
+  // تصفير خطة معلم محدد
+  const handleClearTeacherPlan = async (teacherId, teacherName) => {
+    if (window.confirm(`هل أنت متأكد من مسح الخطة الأسبوعية الخاصة بالمعلم (${teacherName})؟`)) {
+      setClearingTeacherPlanId(teacherId);
+      try {
+        const { error } = await supabase
+          .from('weekly_plans')
+          .delete()
+          .eq('school_phone', currentSchoolPhone)
+          .eq('teacher_id', teacherId);
+
+        if (error) {
+          console.error('Error clearing teacher plan:', error);
+          alert(`❌ حدث خطأ أثناء مسح خطة المعلم: ${error.message || JSON.stringify(error)}`);
+        } else {
+          setWeeklyPlans(prev => prev.filter(p => p.teacher_id !== teacherId));
+          alert(`✅ تم مسح خطة المعلم (${teacherName}) بنجاح.`);
+        }
+      } catch (err) {
+        console.error('Unexpected error clearing teacher plan:', err);
+        alert(`❌ حدث خطأ: ${err.message || err}`);
+      } finally {
+        setClearingTeacherPlanId(null);
+      }
+    }
+  };
+
+  // تنسيق التاريخ بالعربي
+  const formatDateArabic = (dateStr) => {
+    if (!dateStr) return 'لم يسجل دخول بعد';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return 'غير محدد';
+      return d.toLocaleDateString('ar-SA', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // حساب حالة نشاط المعلم (آخر دخول أو تعديل، وهل متأخر أكثر من أسبوع)
+  const getTeacherActivityStatus = (teacherId) => {
+    const teacher = teachers.find(t => t.id === teacherId);
+    const teacherPlans = weeklyPlans.filter(p => p.teacher_id === teacherId);
+
+    let latestPlanUpdate = null;
+    teacherPlans.forEach(p => {
+      const t = p.updated_at || p.created_at;
+      if (t) {
+        const time = new Date(t).getTime();
+        if (!latestPlanUpdate || time > latestPlanUpdate) {
+          latestPlanUpdate = time;
+        }
+      }
+    });
+
+    let lastLoginTime = null;
+    const loginIso = teacherLastLogins[teacherId] || teacher?.assignments?._last_login || teacher?.last_login;
+    if (loginIso) {
+      const time = new Date(loginIso).getTime();
+      if (!isNaN(time)) lastLoginTime = time;
+    }
+
+    const effectiveActivityTime = lastLoginTime || latestPlanUpdate;
+    const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+    const isLate = !effectiveActivityTime || (Date.now() - effectiveActivityTime > oneWeekMs);
+
+    return {
+      lastLoginStr: lastLoginTime ? formatDateArabic(loginIso) : 'لم يسجل دخول',
+      lastPlanUpdateStr: latestPlanUpdate ? formatDateArabic(new Date(latestPlanUpdate).toISOString()) : 'لا توجد خطة مكتوبة',
+      hasPlans: teacherPlans.length > 0,
+      isLate,
+      effectiveActivityTime
+    };
   };
 
   const addClass = async () => {
@@ -1024,12 +1142,12 @@ const AdminView = () => {
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
       {/* Header مع تأثير الاختفاء السلس عند السكرول لأسفل والظهور عند السكرول لأعلى */}
       <div className={`sticky top-3 z-40 transition-all duration-300 transform ${
         showHeader ? 'translate-y-0 opacity-100' : '-translate-y-28 opacity-0 pointer-events-none'
       } print:hidden`}>
-        <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center bg-white/95 backdrop-blur-md p-4 sm:p-5 rounded-3xl shadow-lg border border-slate-100 gap-4">
+        <div className="flex flex-col xl:flex-row justify-between items-stretch xl:items-center bg-white/95 backdrop-blur-md p-4 sm:p-5 rounded-3xl shadow-lg border border-slate-100 gap-4">
           
           {/* الجانب الأيمن: الشعار واسم المدرسة والبيانات */}
           <div className="flex items-center gap-3 shrink-0">
@@ -1053,8 +1171,8 @@ const AdminView = () => {
             </div>
           </div>
 
-          {/* الجانب الأيسر: الأزرار منظمة ومقسمة بشكل مريح */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-start lg:justify-end overflow-x-auto pb-1 sm:pb-0">
+          {/* الجانب الأيسر: الأزرار منظمة ومقسمة وتلتف بمرونة وسلاسة */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-start xl:justify-end">
             
             {/* 1. مشاركة الرابط للمعلمين */}
             <button 
@@ -1096,6 +1214,16 @@ const AdminView = () => {
             >
               <KeyRound size={15} className="text-amber-600" />
               <span>كلمات السر</span>
+            </button>
+
+            {/* 3.5 مراقبة الدخول وتصفير الخطة */}
+            <button 
+              onClick={() => setShowMonitoringModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-2xl font-bold text-xs border border-rose-200/80 shadow-xs transition-all active:scale-95 whitespace-nowrap"
+              title="متابعة آخر دخول وتعديل للمعلمين وتصفير الخطط"
+            >
+              <Clock size={15} className="text-rose-600" />
+              <span>مراقبة الدخول وتصفير الخطة</span>
             </button>
 
             {/* 4. استيراد جدول نصابي */}
@@ -2508,6 +2636,166 @@ const AdminView = () => {
                   إلغاء
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Monitoring & Weekly Plans Reset Modal Overlay */}
+      {showMonitoringModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in" dir="rtl">
+          <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
+            {/* Modal Header */}
+            <div className="p-6 bg-gradient-to-r from-rose-500 to-red-600 text-white flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2.5 rounded-2xl shadow-sm">
+                  <Clock size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold">مراقبة دخول المعلمين وتصفير الخطط</h3>
+                  <p className="text-xs text-rose-100 font-medium">متابعة آخر وقت لدخول كل معلم وتعديله للخطط، مع إمكانية مسح الخطط</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMonitoringModal(false)}
+                className="p-2 hover:bg-white/20 rounded-full transition-all text-white/80 hover:text-white"
+                title="إغلاق"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Toolbar & Global Reset */}
+            <div className="p-5 border-b border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row gap-4 justify-between items-center">
+              <div className="relative w-full sm:w-80">
+                <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={monitoringSearchQuery}
+                  onChange={(e) => setMonitoringSearchQuery(e.target.value)}
+                  placeholder="بحث باسم المعلم..."
+                  className="w-full pr-11 pl-4 py-2.5 bg-white rounded-2xl border border-slate-200 focus:border-rose-400 outline-none text-xs font-bold shadow-xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  disabled={isClearingAllPlans || weeklyPlans.length === 0}
+                  onClick={handleClearAllPlans}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-2xl font-bold text-xs shadow-md shadow-red-200 transition-all active:scale-95 whitespace-nowrap"
+                  title="مسح وتصفير كافة الخطط المكتوبة لجميع المعلمين في المدرسة"
+                >
+                  <RotateCcw size={15} />
+                  <span>{isClearingAllPlans ? 'جاري تصفير الخطط...' : 'تصفير جميع الخطط'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Note bar */}
+            <div className="px-6 py-2.5 bg-amber-50/70 border-b border-amber-100 flex flex-wrap items-center justify-between gap-3 text-[11px] font-bold text-amber-900">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-red-500 inline-block shadow-xs"></span>
+                <span>اللون الأحمر: المعلم لم يسجل دخوله أو لم يعدل خطته منذ أكثر من أسبوع (أسبوع ويوم فأكثر).</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-slate-600">إجمالي المعلمين: <strong className="text-slate-900">{teachers.length}</strong></span>
+                <span className="text-slate-600">الخطط المسجلة: <strong className="text-emerald-700">{weeklyPlans.length}</strong></span>
+              </div>
+            </div>
+
+            {/* Teachers Activity List */}
+            <div className="flex-1 overflow-auto p-6 md:p-8 space-y-3">
+              {teachers
+                .filter(t => t.name.toLowerCase().includes(monitoringSearchQuery.toLowerCase()))
+                .map(teacher => {
+                  const status = getTeacherActivityStatus(teacher.id);
+                  const isClearingThis = clearingTeacherPlanId === teacher.id;
+
+                  return (
+                    <div
+                      key={teacher.id}
+                      className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+                        status.isLate
+                          ? 'bg-red-50/70 border-red-200 shadow-xs'
+                          : 'bg-slate-50 border-slate-200 hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm shrink-0 border ${
+                            status.isLate
+                              ? 'bg-red-600 text-white border-red-500 shadow-sm'
+                              : 'bg-white text-slate-600 border-slate-200 shadow-xs'
+                          }`}
+                        >
+                          <User size={20} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className={`font-bold text-sm ${status.isLate ? 'text-red-700' : 'text-slate-900'}`}>
+                              {teacher.name}
+                            </h4>
+                            {status.isLate && (
+                              <span className="flex items-center gap-1 text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-lg border border-red-200">
+                                <AlertTriangle size={12} />
+                                <span>متأخر (+7 أيام)</span>
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            المعرف: {teacher.id.slice(-6)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs w-full md:w-auto">
+                        <div className="bg-white/80 p-2.5 rounded-xl border border-slate-200/80">
+                          <span className="text-[10px] text-slate-400 block font-semibold">آخر وقت دخول للمنصة:</span>
+                          <span className={`font-bold text-xs ${status.isLate ? 'text-red-600' : 'text-slate-800'}`}>
+                            {status.lastLoginStr}
+                          </span>
+                        </div>
+                        <div className="bg-white/80 p-2.5 rounded-xl border border-slate-200/80">
+                          <span className="text-[10px] text-slate-400 block font-semibold">تاريخ تعديل الخطة:</span>
+                          <span className={`font-bold text-xs ${status.hasPlans ? 'text-indigo-600' : 'text-slate-400 italic'}`}>
+                            {status.lastPlanUpdateStr}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                        <button
+                          type="button"
+                          disabled={!status.hasPlans || isClearingThis}
+                          onClick={() => handleClearTeacherPlan(teacher.id, teacher.name)}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-red-100/80 hover:bg-red-200 text-red-700 disabled:opacity-40 disabled:hover:bg-red-100/80 rounded-xl font-bold text-xs border border-red-200/60 shadow-xs transition-all active:scale-95"
+                          title="تصفير ومسح الخطة المكتوبة لهذا المعلم فقط"
+                        >
+                          <Trash2 size={14} />
+                          <span>{isClearingThis ? 'جاري المسح...' : 'تصفير الخطة'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {teachers.length === 0 && (
+                <div className="text-center py-12 text-slate-400 font-bold text-sm">
+                  لا يوجد معلمين مسجلين حالياً
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowMonitoringModal(false)}
+                className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-all"
+              >
+                إغلاق
+              </button>
             </div>
           </div>
         </div>
