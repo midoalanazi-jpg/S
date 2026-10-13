@@ -139,6 +139,9 @@ const AdminView = () => {
   const [clearingTeacherPlanId, setClearingTeacherPlanId] = useState(null);
   const [teacherLastLogins, setTeacherLastLogins] = useState({});
 
+  // New Feature Announcement Modal (One-time pop-up)
+  const [showNewFeatureModal, setShowNewFeatureModal] = useState(false);
+
   // Nessaby Import State
   const [importPreviewData, setImportPreviewData] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -204,6 +207,22 @@ const AdminView = () => {
       return () => clearTimeout(timer);
     }
   }, [currentSchoolPhone]);
+
+  // Check one-time new feature announcement modal
+  useEffect(() => {
+    const hasSeenFeatureNotice = localStorage.getItem('seen_monitoring_feature_notice_admin_v1');
+    if (!hasSeenFeatureNotice) {
+      const timer = setTimeout(() => {
+        setShowNewFeatureModal(true);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleDismissFeatureModal = () => {
+    localStorage.setItem('seen_monitoring_feature_notice_admin_v1', 'true');
+    setShowNewFeatureModal(false);
+  };
 
   const fetchInitialData = async () => {
     setIsLoading(true);
@@ -2796,6 +2815,72 @@ const AdminView = () => {
               >
                 إغلاق
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Feature Notice Popup for Admin (Shown once) */}
+      {showNewFeatureModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in" dir="rtl">
+          <div className="bg-white max-w-lg w-full rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 animate-in zoom-in-95 flex flex-col">
+            <div className="p-6 bg-gradient-to-r from-rose-500 via-red-500 to-rose-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl shadow-sm">
+                  📢
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">تحديث جديد في لوحة الإدارة ✨</h3>
+                  <p className="text-xs text-rose-100 font-medium">ميزات متقدمة لمتابعة وإدارة الخطط المدرسية</p>
+                </div>
+              </div>
+              <button
+                onClick={handleDismissFeatureModal}
+                className="p-1.5 hover:bg-white/20 rounded-full transition-all text-white/80 hover:text-white"
+                title="إغلاق"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="p-4 bg-rose-50/70 rounded-2xl border border-rose-100 space-y-2">
+                <div className="flex items-center gap-2 text-rose-800 font-bold text-sm">
+                  <span>⏱️</span>
+                  <span>ميزة مراقبة دخول المعلمين وتصفير الخطة:</span>
+                </div>
+                <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                  تم إضافة زر <strong>مراقبة الدخول وتصفير الخطة</strong> في الشريط العلوي للوحة الإدارة. يمكنك من خلاله معرفة آخر وقت لدخول كل معلم وتعديله لخطته بدقة، مع إمكانية مسح وتصفير خطة أي معلم أو تصفير جميع خطط المدرسة بضغطة زر.
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-2.5">
+                <span className="text-base shrink-0 mt-0.5">💡</span>
+                <p className="text-[11px] text-amber-900 font-bold leading-normal">
+                  تظهر هذه الرسالة لمرة واحدة فقط لإشعاركم بالتحديث الجديد في النظام.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDismissFeatureModal();
+                    setShowMonitoringModal(true);
+                  }}
+                  className="flex-1 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-2xl shadow-lg shadow-rose-200 transition-all active:scale-95 text-xs flex items-center justify-center gap-2"
+                >
+                  <Clock size={16} />
+                  <span>فتح نافذة المراقبة الآن</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDismissFeatureModal}
+                  className="px-5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition-all text-xs"
+                >
+                  حسناً، فهمت
+                </button>
+              </div>
             </div>
           </div>
         </div>
