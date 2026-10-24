@@ -124,10 +124,38 @@ function TeacherView() {
       setClasses(clsData || []);
       setTeachers(tchData || []);
       setTeacherPasswords(passwordsObj || {});
+      trackTeacherVisit(currentSchoolPhone, schoolRecord);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // تسجيل وتتبع دخول المعلمين لمنصة الخطط
+  const trackTeacherVisit = async (phone, schoolRecord) => {
+    if (!phone || phone === '1448') return;
+    const sessionKey = `tracked_teacher_visit_${phone}`;
+    if (sessionStorage.getItem(sessionKey)) return;
+    sessionStorage.setItem(sessionKey, '1');
+
+    try {
+      const currentVisits = Number(schoolRecord?.settings?.teacher_visits || 0) + 1;
+      const updatedSettings = {
+        ...(schoolRecord?.settings || {}),
+        teacher_visits: currentVisits,
+        last_teacher_visit: new Date().toISOString()
+      };
+      const payload = {
+        phone: phone,
+        settings: updatedSettings
+      };
+      if (schoolRecord?.name) payload.name = schoolRecord.name;
+      if (schoolRecord?.admin_pin) payload.admin_pin = schoolRecord.admin_pin;
+
+      await supabase.from('schools').upsert(payload, { onConflict: 'phone' });
+    } catch (e) {
+      console.warn('Track teacher visit error:', e);
     }
   };
 
