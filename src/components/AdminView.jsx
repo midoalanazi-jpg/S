@@ -1167,7 +1167,7 @@ const AdminView = () => {
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
-          classId: parsed.classId || '',
+          classId: (parsed.classId && parsed.classId !== '') ? parsed.classId : 'all',
           weekNumber: parsed.weekNumber !== undefined ? parsed.weekNumber : '11',
           semester: parsed.semester || 'الثاني',
           year: parsed.year || '1447 هـ',
@@ -1178,7 +1178,7 @@ const AdminView = () => {
       console.error('Error loading export config:', e);
     }
     return {
-      classId: '',
+      classId: 'all',
       weekNumber: '11',
       semester: 'الثاني',
       year: '1447 هـ',
@@ -1220,7 +1220,7 @@ const AdminView = () => {
   };
 
   const getFullClassData = (classId = exportConfig.classId) => {
-    if (!classId) return null;
+    if (!classId || classId === 'all') return null;
     const cls = classes.find(c => c.id === classId);
     if (!cls) return null;
 
@@ -1254,8 +1254,9 @@ const AdminView = () => {
     };
   };
 
+  const isAllClasses = !exportConfig.classId || exportConfig.classId === 'all';
   const printData = getFullClassData();
-  const allPrintData = isBulkExport ? classes.map(c => getFullClassData(c.id)).filter(d => d !== null) : [];
+  const allPrintData = (isBulkExport || isAllClasses) ? classes.map(c => getFullClassData(c.id)).filter(d => d !== null) : [];
 
   if (!currentSchoolPhone) {
     return <Navigate to="/" replace />;
@@ -1518,12 +1519,16 @@ const AdminView = () => {
           <div className="space-y-1">
             <label className="text-[10px] font-bold opacity-80 mr-1">الفصل المستهدف</label>
             <select 
-              value={exportConfig.classId}
-              onChange={(e) => setExportConfig({...exportConfig, classId: e.target.value})}
-              className="w-full p-3 bg-white/10 border-none rounded-xl font-bold focus:ring-2 focus:ring-white outline-none"
+              value={exportConfig.classId || 'all'}
+              onChange={(e) => {
+                const val = e.target.value;
+                setExportConfig(prev => ({...prev, classId: val}));
+                setIsBulkExport(val === 'all');
+              }}
+              className="w-full p-3 bg-white/10 border-none rounded-xl font-bold focus:ring-2 focus:ring-white outline-none cursor-pointer"
             >
-              <option value="" className="text-gray-900">-- اختر الفصل --</option>
-              {classes.map(c => <option key={c.id} value={c.id} className="text-gray-900">{c.name}</option>)}
+              <option value="all" className="text-gray-900">جميع الفصول</option>
+              {classes.map(c => <option key={c.id} value={c.id} className="text-gray-900">{c.name}</option>)} 
             </select>
           </div>
           <div className="space-y-1">
@@ -1720,9 +1725,9 @@ const AdminView = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button 
-            disabled={!exportConfig.classId}
+            disabled={isAllClasses ? classes.length === 0 : !exportConfig.classId}
             onClick={() => {
-              setIsBulkExport(false);
+              setIsBulkExport(isAllClasses);
               setTimeout(() => window.print(), 100);
             }}
             className="bg-white text-blue-700 py-4 rounded-2xl font-black text-lg hover:bg-blue-50 transition-all shadow-lg active:scale-[0.98] disabled:opacity-50"
@@ -2562,7 +2567,7 @@ const AdminView = () => {
       )}
 
       {/* Real Print Template (Hidden unless printing) */}
-      {(printData || isBulkExport) && (
+      {(printData || isBulkExport || isAllClasses) && (
         <div className="hidden print:block bg-white" dir="rtl">
           <style>{`
             @media print {
@@ -2573,8 +2578,8 @@ const AdminView = () => {
             .day-header { background-color: #f8fafc; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
           `}</style>
           
-          {(isBulkExport ? allPrintData : [printData]).map((data, pIdx) => (
-            <div key={data.id} className={isBulkExport && pIdx < allPrintData.length - 1 ? 'break-after-page mb-8' : ''}>
+          {((isBulkExport || isAllClasses) ? allPrintData : [printData]).filter(Boolean).map((data, pIdx, arr) => (
+            <div key={data.id} className={(isBulkExport || isAllClasses) && pIdx < arr.length - 1 ? 'break-after-page mb-8' : ''}>
               {/* Header */}
               <div className="flex justify-between items-center mb-4 border-2 border-[#2b4c7e] p-3 rounded-3xl">
                 <div className="text-right leading-relaxed">
