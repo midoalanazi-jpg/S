@@ -43,6 +43,9 @@ function TeacherView() {
   const [activeCell, setActiveCell] = useState(null); // { day, period, slotInfo }
   const [selectedCells, setSelectedCells] = useState([]); // Array of { day, period, slotInfo }
   const [saveStatus, setSaveStatus] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isBulkPreparing, setIsBulkPreparing] = useState(false);
+  const [prepProgress, setPrepProgress] = useState({ current: 0, total: 0, status: 'loading' });
   const [isLoading, setIsLoading] = useState(true);
   const [isRotated, setIsRotated] = useState(true);
 
@@ -186,6 +189,13 @@ function TeacherView() {
   };
 
   const saveCellData = async (cells, data) => {
+    if (!cells || cells.length === 0) return;
+    const isMultiple = cells.length > 1;
+    setIsSaving(true);
+    setIsBulkPreparing(true);
+    setPrepProgress({ current: 0, total: cells.length, status: 'loading' });
+    setActiveCell(null);
+
     const updatedDrafts = { ...planData };
     
     // Group cells by classId for efficient saving
@@ -197,13 +207,24 @@ function TeacherView() {
     });
 
     try {
-      for (const classId of Object.keys(classGroups)) {
+      const classKeys = Object.keys(classGroups);
+      let processedCount = 0;
+
+      for (let i = 0; i < classKeys.length; i++) {
+        const classId = classKeys[i];
         if (!updatedDrafts[classId]) updatedDrafts[classId] = {};
         
         classGroups[classId].forEach(cell => {
           const { day, period } = cell;
           if (!updatedDrafts[classId][day]) updatedDrafts[classId][day] = {};
           updatedDrafts[classId][day][period] = data;
+          processedCount++;
+        });
+
+        setPrepProgress({
+          current: processedCount,
+          total: cells.length,
+          status: 'loading'
         });
 
         // Upsert to Supabase
@@ -225,12 +246,20 @@ function TeacherView() {
       }
 
       setPlanData(updatedDrafts);
-      setSaveStatus('تم الحفظ في السحابة');
-      setTimeout(() => setSaveStatus(''), 2000);
-      setActiveCell(null);
+
+      setPrepProgress({ current: cells.length, total: cells.length, status: 'success' });
+      await new Promise(res => setTimeout(res, isMultiple ? 900 : 600));
+      setIsBulkPreparing(false);
+
       setSelectedCells([]);
+      setSaveStatus('تم الحفظ في السحابة');
+      setTimeout(() => setSaveStatus(''), 2500);
     } catch (err) {
+      console.error(err);
+      setIsBulkPreparing(false);
       alert('خطأ في الاتصال بقاعدة البيانات');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1095,7 +1124,7 @@ function TeacherView() {
 
       {/* Floating Action Button for Selection */}
       {selectedCells.length > 0 && (
-        <div className="fixed bottom-4 right-4 left-4 md:left-auto md:w-80 z-40 animate-in slide-in-from-bottom-6">
+        <div className="fixed bottom-4 right-4 left-4 md:left-auto md:w-80 z-50 animate-in slide-in-from-bottom-6">
           <button 
             type="button"
             onClick={() => setActiveCell({
@@ -1226,14 +1255,101 @@ function TeacherView() {
 
               <button 
                 type="button"
+                disabled={isSaving}
                 onClick={() => {
                   saveCellData(selectedCells, formData);
                 }}
-                className="w-full bg-indigo-600 text-white py-3.5 sm:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 text-sm sm:text-base mt-2"
+                className="w-full bg-indigo-600 text-white py-3.5 sm:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 text-sm sm:text-base mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <Save size={18} /> حفظ للكل ({selectedCells.length} حصص)
+                {isSaving ? (
+                  <>
+                    <RotateCw size={18} className="animate-spin" />
+                    <span>جاري الحفظ...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={18} />
+                    <span>{selectedCells.length > 1 ? `حفظ للكل (${selectedCells.length} حصص)` : 'حفظ التحضير'}</span>
+                  </>
+                )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Modal / Animation for Lesson Preparation (كسر الجمود) */}
+      {isBulkPreparing && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" dir="rtl">
+          <div className="bg-white max-w-sm w-full p-6 sm:p-8 rounded-3xl sm:rounded-[2.5rem] shadow-2xl text-center space-y-5 border border-indigo-50/80 animate-in zoom-in-95 duration-200">
+            {prepProgress.status === 'loading' ? (
+              <>
+                <div className="relative flex items-center justify-center w-24 h-24 mx-auto">
+                  {/* Subtle pulsing background glow */}
+                  <div className="absolute inset-0 rounded-full bg-indigo-500/15 animate-ping" />
+                  
+                  {/* Spinning Gradient Ring */}
+                  <div className="w-20 h-20 rounded-full border-4 border-indigo-100 border-t-indigo-600 border-r-indigo-500 animate-spin" />
+                  
+                  {/* Center Icon */}
+                  <div className="absolute inset-0 flex items-center justify-center text-indigo-600">
+                    <BookOpen size={28} className="animate-pulse" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <h3 className="text-lg sm:text-xl font-black text-slate-800">
+                    {prepProgress.total > 1 ? 'جاري تحضير الدروس...' : 'جاري حفظ التحضير...'}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                    {prepProgress.total > 1 
+                      ? `يتم الآن تطبيق التحضير وحفظ البيانات لـ ${prepProgress.total} حصص` 
+                      : 'يتم الآن حفظ وتحديث خطة الحصة في السحابة'}
+                  </p>
+                </div>
+
+                {/* Progress bar */}
+                {prepProgress.total > 1 && (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden p-0.5 border border-slate-200/50">
+                      <div 
+                        className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-full rounded-full transition-all duration-300"
+                        style={{ 
+                          width: `${Math.max(15, Math.round(((prepProgress.current || 1) / (prepProgress.total || 1)) * 100))}%` 
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-400 px-1">
+                      <span>الحصة {prepProgress.current} من {prepProgress.total}</span>
+                      <span>{Math.round(((prepProgress.current || 1) / (prepProgress.total || 1)) * 100)}%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Animated bouncing dots */}
+                <div className="flex justify-center items-center gap-1.5 pt-1">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]"></span>
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]"></span>
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce"></span>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4 py-2 animate-in zoom-in-95 duration-200">
+                <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                  <CheckCircle2 size={44} className="text-emerald-600 animate-in zoom-in-50 duration-300" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-lg sm:text-xl font-black text-slate-800">
+                    {prepProgress.total > 1 ? 'تم تحضير الدروس بنجاح!' : 'تم حفظ التحضير بنجاح!'}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-emerald-700 font-bold bg-emerald-50 py-1.5 px-3 rounded-full inline-block">
+                    {prepProgress.total > 1 
+                      ? `تم تطبيق التحضير على ${prepProgress.total} حصص بنجاح ✨` 
+                      : 'تم حفظ بيانات الحصة في السحابة بنجاح ✨'}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
