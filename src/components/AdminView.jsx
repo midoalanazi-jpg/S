@@ -125,6 +125,21 @@ const AdminView = () => {
   const [newPinVal, setNewPinVal] = useState('');
   const [confirmPinVal, setConfirmPinVal] = useState('');
 
+  // Admin Route Protection State (حماية مسار لوحة الإدارة)
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
+    try {
+      return sessionStorage.getItem(`admin_auth_${currentSchoolPhone}`) === 'true' ||
+             sessionStorage.getItem('admin_authenticated') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [loginPinInput, setLoginPinInput] = useState('');
+  const [loginPinError, setLoginPinError] = useState('');
+  const [showLoginPinText, setShowLoginPinText] = useState(false);
+  const [initialPinVal, setInitialPinVal] = useState('');
+  const [confirmInitialPinVal, setConfirmInitialPinVal] = useState('');
+
   const [showPasswordsModal, setShowPasswordsModal] = useState(false);
   const [teacherPasswords, setTeacherPasswords] = useState({});
   const [revealedPasswords, setRevealedPasswords] = useState({});
@@ -454,6 +469,66 @@ const AdminView = () => {
         const remaining = 10 - nextAttempts;
         setPinError(`كلمة المرور غير صحيحة! المحاولة (${nextAttempts}/10) - متبقي ${remaining} محاولات قبل مسحها.`);
       }
+    }
+  };
+
+  const handleAdminLogin = (e) => {
+    if (e) e.preventDefault();
+    const entered = loginPinInput.trim();
+    if (!entered) {
+      setLoginPinError('يرجى إدخال الرمز السري للإدارة');
+      return;
+    }
+    if (entered === storedAdminPin) {
+      setIsAdminLoggedIn(true);
+      setLoginPinError('');
+      setLoginPinInput('');
+      try {
+        sessionStorage.setItem(`admin_auth_${currentSchoolPhone}`, 'true');
+        sessionStorage.setItem('admin_authenticated', 'true');
+      } catch (err) {}
+    } else {
+      setLoginPinError('الرمز السري غير صحيح، يرجى المحاولة مجدداً');
+    }
+  };
+
+  const handleAdminLogout = () => {
+    try {
+      sessionStorage.removeItem(`admin_auth_${currentSchoolPhone}`);
+      sessionStorage.removeItem('admin_authenticated');
+    } catch (err) {}
+    setIsAdminLoggedIn(false);
+    setLoginPinInput('');
+    setLoginPinError('');
+  };
+
+  const handleSetInitialPin = async (e) => {
+    if (e) e.preventDefault();
+    const p1 = initialPinVal.trim();
+    const p2 = confirmInitialPinVal.trim();
+    if (!p1 || p1.length < 3) {
+      setLoginPinError('يجب أن يتكون الرمز السري من 3 خانات على الأقل');
+      return;
+    }
+    if (p1 !== p2) {
+      setLoginPinError('الرمزان غير متطابقين!');
+      return;
+    }
+    try {
+      await supabase.from('schools').upsert({
+        phone: currentSchoolPhone,
+        admin_pin: p1
+      }, { onConflict: 'phone' });
+
+      setStoredAdminPin(p1);
+      setIsAdminLoggedIn(true);
+      setLoginPinError('');
+      try {
+        sessionStorage.setItem(`admin_auth_${currentSchoolPhone}`, 'true');
+        sessionStorage.setItem('admin_authenticated', 'true');
+      } catch (err) {}
+    } catch (err) {
+      setLoginPinError('تعذر حفظ الرمز، تحقق من الاتصال بالإنترنت');
     }
   };
 
@@ -1186,6 +1261,112 @@ const AdminView = () => {
     return <Navigate to="/" replace />;
   }
 
+  // حاجز حماية لوحة الإدارة (Route Guard) لمنع الوصول للبيانات بدون إدخال رمز الإدارة السري
+  if (!isAdminLoggedIn) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 print:hidden" dir="rtl">
+        <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 border border-slate-100 text-center space-y-6">
+          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+            <Lock size={32} />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-slate-900">بوابة إدارة المدرسة</h2>
+            <p className="text-sm text-slate-600 mt-1 font-bold">
+              {schoolName ? `مدرسة: ${schoolName}` : `المدرسة: ${currentSchoolPhone}`}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              {storedAdminPin ? 'يرجى إدخال الرمز السري للإدارة للمتابعة' : 'يرجى تعيين رمز سري جديد لحماية لوحة الإدارة'}
+            </p>
+          </div>
+
+          {storedAdminPin ? (
+            <form onSubmit={handleAdminLogin} className="space-y-4">
+              <div className="relative">
+                <input
+                  type={showLoginPinText ? 'text' : 'password'}
+                  autoFocus
+                  value={loginPinInput}
+                  onChange={(e) => {
+                    setLoginPinInput(e.target.value);
+                    if (loginPinError) setLoginPinError('');
+                  }}
+                  placeholder="••••"
+                  className="w-full p-4 bg-slate-50 text-center text-2xl tracking-widest font-black rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPinText(!showLoginPinText)}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showLoginPinText ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+
+              {loginPinError && (
+                <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded-xl border border-red-100">
+                  {loginPinError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <KeyRound size={18} /> دخول لوحة الإدارة
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSetInitialPin} className="space-y-3.5">
+              <input
+                type="password"
+                autoFocus
+                value={initialPinVal}
+                onChange={(e) => {
+                  setInitialPinVal(e.target.value);
+                  if (loginPinError) setLoginPinError('');
+                }}
+                placeholder="الرمز السري الجديد (3 خانات فأكثر)..."
+                className="w-full p-3.5 bg-slate-50 text-center text-lg tracking-widest font-black rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              />
+              <input
+                type="password"
+                value={confirmInitialPinVal}
+                onChange={(e) => {
+                  setConfirmInitialPinVal(e.target.value);
+                  if (loginPinError) setLoginPinError('');
+                }}
+                placeholder="تأكيد الرمز السري..."
+                className="w-full p-3.5 bg-slate-50 text-center text-lg tracking-widest font-black rounded-2xl border border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              />
+
+              {loginPinError && (
+                <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded-xl border border-red-100">
+                  {loginPinError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Save size={18} /> حفظ الرمز وتأمين اللوحة
+              </button>
+            </form>
+          )}
+
+          <div className="pt-2 border-t border-slate-100">
+            <Link
+              to={`/s/${currentSchoolPhone}`}
+              className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors inline-flex items-center gap-1"
+            >
+              العودة إلى صفحة المدرسة للمعلمين ➔
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
       {/* Header مع تأثير الاختفاء السلس عند السكرول لأسفل والظهور عند السكرول لأعلى */}
@@ -1297,6 +1478,16 @@ const AdminView = () => {
               <Home size={15} className="text-slate-600" />
               <span>الرئيسية</span>
             </Link>
+
+            {/* 6. قفل وخروج */}
+            <button
+              onClick={handleAdminLogout}
+              className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-900 rounded-2xl font-bold text-xs border border-rose-200/80 shadow-xs transition-all active:scale-95 whitespace-nowrap"
+              title="قفل وتسجيل الخروج من لوحة الإدارة"
+            >
+              <Lock size={15} className="text-rose-600" />
+              <span>قفل وخروج</span>
+            </button>
 
           </div>
         </div>

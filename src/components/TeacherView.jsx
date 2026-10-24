@@ -101,29 +101,25 @@ function TeacherView() {
     try {
       const { data: clsData } = await supabase.from('classes').select('*').eq('school_phone', currentSchoolPhone);
       const { data: tchData } = await supabase.from('teachers').select('*').eq('school_phone', currentSchoolPhone);
-      const { data: schoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
+      const { data: schoolRecord } = await supabase.from('schools').select('id, name, phone, settings').eq('phone', currentSchoolPhone).maybeSingle();
 
-      let passwordsObj = {};
+      let rawPasswords = {};
       if (schoolRecord && schoolRecord.settings && schoolRecord.settings.teacher_passwords) {
-        passwordsObj = schoolRecord.settings.teacher_passwords;
-      } else {
-        const { data: pwdSetting } = await supabase.from('settings').select('*').eq('key', 'teacher_passwords').maybeSingle();
-        if (pwdSetting && pwdSetting.value) {
-          try {
-            passwordsObj = typeof pwdSetting.value === 'string' ? JSON.parse(pwdSetting.value) : pwdSetting.value;
-          } catch (e) {
-            console.error('Error parsing teacher passwords:', e);
-          }
-        }
+        rawPasswords = schoolRecord.settings.teacher_passwords;
       }
 
-      const savedPin = schoolRecord?.admin_pin || localStorage.getItem(`admin_master_pin_${currentSchoolPhone}`) || localStorage.getItem('admin_master_pin') || '';
-      setStoredAdminPin(savedPin);
+      // حماية الخصوصية: تخزين حالة وجود كلمة سر فقط دون تسريب النصوص الصريحة لجميع المعلمين إلى المتصفح
+      const pwdStatus = {};
+      Object.keys(rawPasswords).forEach(id => {
+        if (rawPasswords[id] && String(rawPasswords[id]).trim() !== '') {
+          pwdStatus[id] = true;
+        }
+      });
 
-      setSchoolInfo(schoolRecord || { phone: currentSchoolPhone, name: '' });
+      setSchoolInfo({ id: schoolRecord?.id, name: schoolRecord?.name || '', phone: currentSchoolPhone });
       setClasses(clsData || []);
       setTeachers(tchData || []);
-      setTeacherPasswords(passwordsObj || {});
+      setTeacherPasswords(pwdStatus);
       trackTeacherVisit(currentSchoolPhone, schoolRecord);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -384,11 +380,16 @@ function TeacherView() {
 
   const handleVerifyPassword = async (e) => {
     if (e) e.preventDefault();
-    const currentPass = teacherPasswords[selectedTeacherId] || teachers.find(t => t.id === selectedTeacherId)?.assignments?._password;
-    if (enteredPassword.trim() === String(currentPass).trim()) {
-      setIsAuthenticated(true);
-      setLoginError('');
-      setEnteredPassword('');
+    if (!selectedTeacherId) return;
+
+    try {
+      const { data: rec } = await supabase.from('schools').select('settings').eq('phone', currentSchoolPhone).maybeSingle();
+      const currentPass = rec?.settings?.teacher_passwords?.[selectedTeacherId] || teachers.find(t => t.id === selectedTeacherId)?.assignments?._password;
+
+      if (enteredPassword.trim() === String(currentPass).trim()) {
+        setIsAuthenticated(true);
+        setLoginError('');
+        setEnteredPassword('');
 
       // Record last login timestamp
       const nowIso = new Date().toISOString();
@@ -411,6 +412,10 @@ function TeacherView() {
     } else {
       setLoginError('كلمة المرور غير صحيحة، يرجى المحاولة مجدداً');
     }
+    } catch (err) {
+      console.error('Verify password error:', err);
+      setLoginError('حدث خطأ أثناء التحقق من كلمة المرور');
+    }
   };
 
   const handleLogoutTeacher = () => {
@@ -421,15 +426,18 @@ function TeacherView() {
     setLoginError('');
   };
 
-  const handleOpenAdminModal = () => {
+  const handleOpenAdminModal = async () => {
     setAdminPinInput('');
     setAdminPinError('');
     setNewAdminPinVal('');
     setConfirmAdminPinVal('');
     setShowAdminPinText(false);
-    if (!storedAdminPin) {
-      setIsSettingNewAdminPin(true);
-    } else {
+    try {
+      const { data: rec } = await supabase.from('schools').select('admin_pin').eq('phone', currentSchoolPhone).maybeSingle();
+      const currentPin = rec?.admin_pin || '';
+      setStoredAdminPin(currentPin);
+      setIsSettingNewAdminPin(!currentPin);
+    } catch {
       setIsSettingNewAdminPin(false);
     }
     setShowAdminPinModal(true);
