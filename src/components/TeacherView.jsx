@@ -64,7 +64,7 @@ function TeacherView() {
   const [showNewFeatureModal, setShowNewFeatureModal] = useState(false);
 
   useEffect(() => {
-    const hasSeenFeatureNotice = localStorage.getItem('seen_monitoring_feature_notice_v1');
+    const hasSeenFeatureNotice = localStorage.getItem('seen_bulk_prep_feature_notice_v1');
     if (!hasSeenFeatureNotice) {
       const timer = setTimeout(() => {
         setShowNewFeatureModal(true);
@@ -74,7 +74,7 @@ function TeacherView() {
   }, []);
 
   const handleDismissFeatureModal = () => {
-    localStorage.setItem('seen_monitoring_feature_notice_v1', 'true');
+    localStorage.setItem('seen_bulk_prep_feature_notice_v1', 'true');
     setShowNewFeatureModal(false);
   };
 
@@ -1380,14 +1380,14 @@ function TeacherView() {
       {showNewFeatureModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in" dir="rtl">
           <div className="bg-white max-w-lg w-full rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 animate-in zoom-in-95 flex flex-col">
-            <div className="p-6 bg-gradient-to-r from-rose-500 via-red-500 to-rose-600 text-white flex items-center justify-between">
+            <div className="p-6 bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-700 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl shadow-sm">
-                  📢
+                  ✨
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold">تحديث جديد في المنصة ✨</h3>
-                  <p className="text-xs text-rose-100 font-medium">ميزات وإمكانيات جديدة لإدارة الخطط</p>
+                  <h3 className="text-lg font-bold">تحديث جديد: التحضير المتعدد للحصص 🚀</h3>
+                  <p className="text-xs text-indigo-100 font-medium">ميزة جديدة لتسهيل وتسريع التحضير</p>
                 </div>
               </div>
               <button
@@ -1400,29 +1400,44 @@ function TeacherView() {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="p-4 bg-rose-50/70 rounded-2xl border border-rose-100 space-y-2">
-                <div className="flex items-center gap-2 text-rose-800 font-bold text-sm">
-                  <span>⏱️</span>
-                  <span>ميزة مراقبة دخول المعلمين وتصفير الخطة:</span>
+              <div className="p-4 bg-indigo-50/70 rounded-2xl border border-indigo-100 space-y-2">
+                <div className="flex items-center gap-2 text-indigo-900 font-black text-sm sm:text-base">
+                  <span>⚡</span>
+                  <span>يمكنك تحديد أكثر من حصة لتحضير الحصص المكررة</span>
                 </div>
-                <p className="text-xs text-slate-700 font-medium leading-relaxed">
-                  تم تحديث النظام وإضافة ميزة <strong>مراقبة دخول المعلمين وتصفير الخطة الأسبوعية</strong> في <strong>لوحة الإدارة</strong>. تتيح لإدارة المدرسة متابعة تفاعل المعلمين، ومعرفة آخر وقت لدخول كل معلم وتعديله لخطته، مع إمكانية مسح وتصفير الخطط بضغطة زر.
+                <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+                  الآن يمكنك الضغط على الحصص المتشابهة لتحديدها معاً، ثم كتابة التحضير مرة واحدة ليتم تطبيقه على جميع الحصص المحددة بنقرة واحدة وتوفير وقتك.
                 </p>
               </div>
 
-              <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-2.5">
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-base block mb-1">👆</span>
+                  <p className="text-[10px] sm:text-[11px] font-bold text-slate-700">1. حدد الحصص</p>
+                </div>
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-base block mb-1">✍️</span>
+                  <p className="text-[10px] sm:text-[11px] font-bold text-slate-700">2. اكتب التحضير</p>
+                </div>
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-base block mb-1">🚀</span>
+                  <p className="text-[10px] sm:text-[11px] font-bold text-slate-700">3. حفظ للكل</p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-2.5">
                 <span className="text-base shrink-0 mt-0.5">💡</span>
                 <p className="text-[11px] text-amber-900 font-bold leading-normal">
-                  تظهر هذه الرسالة لمرة واحدة فقط لإشعاركم بالتحديث الجديد في النظام.
+                  تظهر هذه الرسالة لمرة واحدة فقط لإشعاركم بالميزة الجديدة.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={handleDismissFeatureModal}
-                className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-2xl shadow-lg shadow-rose-200 transition-all active:scale-95 text-sm"
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200 transition-all active:scale-95 text-sm"
               >
-                فهمت ذلك، حسناً 👍
+                رائع، فهمت ذلك 👍
               </button>
             </div>
           </div>
