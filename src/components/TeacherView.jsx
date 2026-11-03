@@ -101,7 +101,7 @@ function TeacherView() {
     try {
       const { data: clsData } = await supabase.from('classes').select('*').eq('school_phone', currentSchoolPhone);
       const { data: tchData } = await supabase.from('teachers').select('*').eq('school_phone', currentSchoolPhone);
-      const { data: schoolRecord } = await supabase.from('schools').select('id, name, phone, settings').eq('phone', currentSchoolPhone).maybeSingle();
+      const { data: schoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
 
       let rawPasswords = {};
       if (schoolRecord && schoolRecord.settings && schoolRecord.settings.teacher_passwords) {
@@ -111,12 +111,23 @@ function TeacherView() {
       // حماية الخصوصية: تخزين حالة وجود كلمة سر فقط دون تسريب النصوص الصريحة لجميع المعلمين إلى المتصفح
       const pwdStatus = {};
       Object.keys(rawPasswords).forEach(id => {
-        if (rawPasswords[id] && String(rawPasswords[id]).trim() !== '') {
+        const val = rawPasswords[id];
+        if (val && typeof val === 'string' && val.trim() !== '' && val.trim() !== 'true') {
           pwdStatus[id] = true;
         }
       });
+      // فحص كلمات المرور المخزنة في سجل المعلم كنسخة احتياطية
+      (tchData || []).forEach(t => {
+        const tVal = t.assignments?._password;
+        if (tVal && typeof tVal === 'string' && tVal.trim() !== '' && tVal.trim() !== 'true') {
+          pwdStatus[t.id] = true;
+        }
+      });
 
-      setSchoolInfo({ id: schoolRecord?.id, name: schoolRecord?.name || '', phone: currentSchoolPhone });
+      const savedPin = schoolRecord?.admin_pin || localStorage.getItem(`admin_master_pin_${currentSchoolPhone}`) || localStorage.getItem('admin_master_pin') || '';
+      setStoredAdminPin(savedPin);
+
+      setSchoolInfo(schoolRecord || { id: schoolRecord?.id, name: schoolRecord?.name || '', phone: currentSchoolPhone, settings: {} });
       setClasses(clsData || []);
       setTeachers(tchData || []);
       setTeacherPasswords(pwdStatus);
@@ -136,9 +147,17 @@ function TeacherView() {
     sessionStorage.setItem(sessionKey, '1');
 
     try {
-      const currentVisits = Number(schoolRecord?.settings?.teacher_visits || 0) + 1;
+      const { data: freshRec } = await supabase
+        .from('schools')
+        .select('*')
+        .eq('phone', phone)
+        .maybeSingle();
+
+      const base = freshRec || schoolRecord;
+      const currentVisits = Number(base?.settings?.teacher_visits || 0) + 1;
+      const currentSettings = base?.settings || {};
       const updatedSettings = {
-        ...(schoolRecord?.settings || {}),
+        ...currentSettings,
         teacher_visits: currentVisits,
         last_teacher_visit: new Date().toISOString()
       };
@@ -146,8 +165,8 @@ function TeacherView() {
         phone: phone,
         settings: updatedSettings
       };
-      if (schoolRecord?.name) payload.name = schoolRecord.name;
-      if (schoolRecord?.admin_pin) payload.admin_pin = schoolRecord.admin_pin;
+      if (base?.name) payload.name = base.name;
+      if (base?.admin_pin) payload.admin_pin = base.admin_pin;
 
       await supabase.from('schools').upsert(payload, { onConflict: 'phone' });
     } catch (e) {
@@ -328,48 +347,79 @@ function TeacherView() {
 
   const handleSetNewPassword = async (e) => {
     if (e) e.preventDefault();
-    if (!newPassword.trim()) {
+    const trimmed = newPassword.trim();
+    if (!trimmed) {
       setLoginError('يرجى كتابة كلمة المرور (حرف أو رقم على الأقل)');
       return;
     }
     setIsLoading(true);
     setLoginError('');
     try {
-      const updatedPasswords = { ...teacherPasswords, [selectedTeacherId]: newPassword.trim() };
-      
-      await supabase.from('schools').upsert({
-        phone: currentSchoolPhone,
-        settings: { ...(schoolInfo?.settings || {}), teacher_passwords: updatedPasswords }
-      }, { onConflict: 'phone' });
+      // 1. جلب أحدث سجل للمدرسة من قاعدة البيانات لعدم مسح أي إعدادات أو كلمات سر سابقة
+      const { data: schoolRecord } = await supabase
+        .from('schools')
+        .select('*')
+        .eq('phone', currentSchoolPhone)
+        .maybeSingle();
 
-      await supabase.from('settings').upsert({
-        key: 'teacher_passwords',
-        value: JSON.stringify(updatedPasswords)
+      const currentSettings = schoolRecord?.settings || {};
+      const existingPasswords = (currentSettings.teacher_passwords && typeof currentSettings.teacher_passwords === 'object')
+        ? { ...currentSettings.teacher_passwords }
+        : {};
+
+      // تنظيف أي قيم سابقة تالفة (مثل boolean true)
+      const cleanExistingPasswords = {};
+      Object.keys(existingPasswords).forEach(k => {
+        const v = existingPasswords[k];
+        if (v && typeof v === 'string' && v.trim() !== '' && v.trim() !== 'true') {
+          cleanExistingPasswords[k] = v.trim();
+        }
       });
+      cleanExistingPasswords[selectedTeacherId] = trimmed;
 
-      // Update local state and record login timestamp
       const nowIso = new Date().toISOString();
-      setTeacherPasswords(updatedPasswords);
+      const currentLogins = (currentSettings.teacher_last_logins && typeof currentSettings.teacher_last_logins === 'object')
+        ? { ...currentSettings.teacher_last_logins }
+        : {};
+      currentLogins[selectedTeacherId] = nowIso;
+
+      const updatedSettings = {
+        ...currentSettings,
+        teacher_passwords: cleanExistingPasswords,
+        teacher_last_logins: currentLogins
+      };
+
+      const payload = {
+        phone: currentSchoolPhone,
+        settings: updatedSettings
+      };
+      if (schoolRecord?.name) payload.name = schoolRecord.name;
+      if (schoolRecord?.admin_pin) payload.admin_pin = schoolRecord.admin_pin;
+
+      const { error: schoolError } = await supabase.from('schools').upsert(payload, { onConflict: 'phone' });
+      if (schoolError) console.error('Error saving password to schools:', schoolError);
+
+      // 2. تحديث سجل المعلم في جدول teachers كنسخة احتياطية دائمة
+      const teacher = teachers.find(t => t.id === selectedTeacherId);
+      if (teacher) {
+        const updatedAssignments = {
+          ...(teacher.assignments || {}),
+          _password: trimmed,
+          _last_login: nowIso
+        };
+        const { error: tchError } = await supabase.from('teachers').update({ assignments: updatedAssignments }).eq('id', selectedTeacherId);
+        if (tchError) console.error('Error saving password to teachers:', tchError);
+        setTeachers(prev => prev.map(t => t.id === selectedTeacherId ? { ...t, assignments: updatedAssignments } : t));
+      }
+
+      // 3. تحديث الذاكرة المحلية
+      setSchoolInfo(prev => ({
+        ...(prev || {}),
+        settings: updatedSettings
+      }));
+      setTeacherPasswords(prev => ({ ...prev, [selectedTeacherId]: true }));
       setIsAuthenticated(true);
       setNewPassword('');
-
-      // Record last login in school settings and teacher assignments
-      try {
-        const currentLogins = schoolInfo?.settings?.teacher_last_logins || {};
-        const updatedLogins = { ...currentLogins, [selectedTeacherId]: nowIso };
-        await supabase.from('schools').upsert({
-          phone: currentSchoolPhone,
-          settings: { ...(schoolInfo?.settings || {}), teacher_passwords: updatedPasswords, teacher_last_logins: updatedLogins }
-        }, { onConflict: 'phone' });
-
-        const teacher = teachers.find(t => t.id === selectedTeacherId);
-        if (teacher) {
-          const updatedAssignments = { ...(teacher.assignments || {}), _last_login: nowIso };
-          await supabase.from('teachers').update({ assignments: updatedAssignments }).eq('id', selectedTeacherId);
-        }
-      } catch (logErr) {
-        console.error('Error logging teacher login timestamp:', logErr);
-      }
     } catch (err) {
       console.error('Error setting password:', err);
       setLoginError('حدث خطأ أثناء حفظ كلمة المرور، يرجى المحاولة لاحقاً');
@@ -383,35 +433,89 @@ function TeacherView() {
     if (!selectedTeacherId) return;
 
     try {
-      const { data: rec } = await supabase.from('schools').select('settings').eq('phone', currentSchoolPhone).maybeSingle();
-      const currentPass = rec?.settings?.teacher_passwords?.[selectedTeacherId] || teachers.find(t => t.id === selectedTeacherId)?.assignments?._password;
+      // 1. جلب أحدث بيانات المدرسة للتحقق من كلمة المرور
+      const { data: schoolRecord } = await supabase
+        .from('schools')
+        .select('*')
+        .eq('phone', currentSchoolPhone)
+        .maybeSingle();
 
-      if (enteredPassword.trim() === String(currentPass).trim()) {
+      const teacher = teachers.find(t => t.id === selectedTeacherId);
+      const currentPass = schoolRecord?.settings?.teacher_passwords?.[selectedTeacherId] || teacher?.assignments?._password;
+
+      // فحص صلاحية كلمة المرور المخزنة (استبعاد القيم التالفة مثل true المنطقية أو الفراغات)
+      const isValidPass = currentPass && typeof currentPass === 'string' && currentPass.trim() !== '' && currentPass.trim() !== 'true';
+
+      if (!isValidPass) {
+        // إذا لم تكن هناك كلمة مرور صالحة، نلغي حالة وجود كلمة سر للمعلم ونسمح له بتعيين كلمة سر جديدة فوراً
+        setTeacherPasswords(prev => {
+          const next = { ...prev };
+          delete next[selectedTeacherId];
+          return next;
+        });
+        setLoginError('لم يتم ضبط كلمة مرور صالحة لحسابك بعد. يرجى تعيين كلمة مرور جديدة الآن.');
+        return;
+      }
+
+      if (enteredPassword.trim() === currentPass.trim()) {
         setIsAuthenticated(true);
         setLoginError('');
         setEnteredPassword('');
 
-      // Record last login timestamp
-      const nowIso = new Date().toISOString();
-      try {
-        const currentLogins = schoolInfo?.settings?.teacher_last_logins || {};
-        const updatedLogins = { ...currentLogins, [selectedTeacherId]: nowIso };
-        await supabase.from('schools').upsert({
-          phone: currentSchoolPhone,
-          settings: { ...(schoolInfo?.settings || {}), teacher_last_logins: updatedLogins }
-        }, { onConflict: 'phone' });
+        // 2. تسجيل وقت الدخول بأمان دون مسح الإعدادات أو كلمات السر إطلاقاً
+        const nowIso = new Date().toISOString();
+        try {
+          const currentSettings = schoolRecord?.settings || {};
+          const existingPasswords = (currentSettings.teacher_passwords && typeof currentSettings.teacher_passwords === 'object')
+            ? { ...currentSettings.teacher_passwords }
+            : {};
 
-        const teacher = teachers.find(t => t.id === selectedTeacherId);
-        if (teacher) {
-          const updatedAssignments = { ...(teacher.assignments || {}), _last_login: nowIso };
-          await supabase.from('teachers').update({ assignments: updatedAssignments }).eq('id', selectedTeacherId);
+          // ضمان وجود كلمة المرور في إعدادات المدرسة إذا كانت مخزنة فقط في سجل المعلم
+          if (!existingPasswords[selectedTeacherId] && currentPass) {
+            existingPasswords[selectedTeacherId] = String(currentPass).trim();
+          }
+
+          const currentLogins = (currentSettings.teacher_last_logins && typeof currentSettings.teacher_last_logins === 'object')
+            ? { ...currentSettings.teacher_last_logins }
+            : {};
+          currentLogins[selectedTeacherId] = nowIso;
+
+          const updatedSettings = {
+            ...currentSettings,
+            teacher_passwords: existingPasswords,
+            teacher_last_logins: currentLogins
+          };
+
+          const payload = {
+            phone: currentSchoolPhone,
+            settings: updatedSettings
+          };
+          if (schoolRecord?.name) payload.name = schoolRecord.name;
+          if (schoolRecord?.admin_pin) payload.admin_pin = schoolRecord.admin_pin;
+
+          await supabase.from('schools').upsert(payload, { onConflict: 'phone' });
+
+          // تحديث بيانات المعلم كنسخة احتياطية
+          if (teacher) {
+            const updatedAssignments = {
+              ...(teacher.assignments || {}),
+              _last_login: nowIso,
+              _password: String(currentPass).trim()
+            };
+            await supabase.from('teachers').update({ assignments: updatedAssignments }).eq('id', selectedTeacherId);
+            setTeachers(prev => prev.map(t => t.id === selectedTeacherId ? { ...t, assignments: updatedAssignments } : t));
+          }
+
+          setSchoolInfo(prev => ({
+            ...(prev || {}),
+            settings: updatedSettings
+          }));
+        } catch (logErr) {
+          console.error('Error recording login timestamp:', logErr);
         }
-      } catch (logErr) {
-        console.error('Error recording login timestamp:', logErr);
+      } else {
+        setLoginError('كلمة المرور غير صحيحة، يرجى المحاولة مجدداً');
       }
-    } else {
-      setLoginError('كلمة المرور غير صحيحة، يرجى المحاولة مجدداً');
-    }
     } catch (err) {
       console.error('Verify password error:', err);
       setLoginError('حدث خطأ أثناء التحقق من كلمة المرور');
@@ -540,10 +644,12 @@ function TeacherView() {
     }
   };
 
-  // Check if current selected teacher has a password
+  // Check if current selected teacher has a valid password
   const currentSelectedTeacher = teachers.find(t => t.id === selectedTeacherId);
-  const teacherStoredPassword = selectedTeacherId ? (teacherPasswords[selectedTeacherId] || currentSelectedTeacher?.assignments?._password) : null;
-  const isFirstTimeTeacher = selectedTeacherId && !teacherStoredPassword;
+  const rawTeacherPass = currentSelectedTeacher?.assignments?._password;
+  const hasValidAssignmentPass = rawTeacherPass && typeof rawTeacherPass === 'string' && rawTeacherPass.trim() !== '' && rawTeacherPass.trim() !== 'true';
+  const hasValidStoredPass = Boolean(teacherPasswords[selectedTeacherId]) || hasValidAssignmentPass;
+  const isFirstTimeTeacher = selectedTeacherId && !hasValidStoredPass;
 
   // إذا لم يتم تحديد مدرسة بالرابط، نعرض شاشة البحث بالرقم
   if (!currentSchoolPhone) {

@@ -281,10 +281,28 @@ const AdminView = () => {
       }
       setStoredAdminPin(savedPin);
 
+      // أمان مضاعف: استرجاع كلمات مرور وتواريخ دخول المعلمين مع استبعاد القيم التالفة (مثل boolean true)
+      const cleanPasswordsObj = {};
+      Object.keys(passwordsObj).forEach(id => {
+        const val = passwordsObj[id];
+        if (val && typeof val === 'string' && val.trim() !== '' && val.trim() !== 'true') {
+          cleanPasswordsObj[id] = val.trim();
+        }
+      });
+      (tchData || []).forEach(t => {
+        const tVal = t.assignments?._password;
+        if (tVal && typeof tVal === 'string' && tVal.trim() !== '' && tVal.trim() !== 'true' && !cleanPasswordsObj[t.id]) {
+          cleanPasswordsObj[t.id] = tVal.trim();
+        }
+        if (t.assignments?._last_login && !lastLoginsObj[t.id]) {
+          lastLoginsObj[t.id] = t.assignments._last_login;
+        }
+      });
+
       setClasses(clsData || []);
       setTeachers(tchData || []);
       setWeeklyPlans(plansData || []);
-      setTeacherPasswords(passwordsObj || {});
+      setTeacherPasswords(cleanPasswordsObj);
       setTeacherLastLogins(lastLoginsObj || {});
       trackAdminVisit(currentSchoolPhone, schoolRecord);
     } catch (err) {
@@ -533,32 +551,50 @@ const AdminView = () => {
   };
 
   const handleSaveTeacherPassword = async (teacherId, newPwd) => {
-    if (!newPwd.trim()) {
+    const trimmed = newPwd.trim();
+    if (!trimmed) {
       alert('يرجى إدخال كلمة مرور صالحة (حرف أو رقم على الأقل)');
       return;
     }
     try {
-      const updated = { ...teacherPasswords, [teacherId]: newPwd.trim() };
-
       const { data: schoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
-      await supabase.from('schools').upsert({
-        phone: currentSchoolPhone,
-        settings: { ...(schoolRecord?.settings || {}), teacher_passwords: updated }
-      }, { onConflict: 'phone' });
-
-      await supabase.from('settings').upsert({
-        key: 'teacher_passwords',
-        value: JSON.stringify(updated)
+      const currentSettings = schoolRecord?.settings || {};
+      const rawCurrentPasswords = currentSettings.teacher_passwords || {};
+      const cleanPasswords = {};
+      Object.keys(rawCurrentPasswords).forEach(k => {
+        const v = rawCurrentPasswords[k];
+        if (v && typeof v === 'string' && v.trim() !== '' && v.trim() !== 'true') {
+          cleanPasswords[k] = v.trim();
+        }
       });
+      Object.keys(teacherPasswords).forEach(k => {
+        const v = teacherPasswords[k];
+        if (v && typeof v === 'string' && v.trim() !== '' && v.trim() !== 'true') {
+          cleanPasswords[k] = v.trim();
+        }
+      });
+      cleanPasswords[teacherId] = trimmed;
 
-      // Also update assignments._password as backup
+      const payload = {
+        phone: currentSchoolPhone,
+        settings: { ...currentSettings, teacher_passwords: cleanPasswords }
+      };
+      if (schoolRecord?.name) payload.name = schoolRecord.name;
+      if (schoolRecord?.admin_pin) payload.admin_pin = schoolRecord.admin_pin;
+
+      const { error: schoolError } = await supabase.from('schools').upsert(payload, { onConflict: 'phone' });
+      if (schoolError) console.error('Error saving password to schools:', schoolError);
+
+      // Also update assignments._password in teachers table as permanent backup
       const teacher = teachers.find(t => t.id === teacherId);
       if (teacher) {
-        const updatedAssignments = { ...(teacher.assignments || {}), _password: newPwd.trim() };
-        await supabase.from('teachers').update({ assignments: updatedAssignments }).eq('id', teacherId);
+        const updatedAssignments = { ...(teacher.assignments || {}), _password: trimmed };
+        const { error: tchError } = await supabase.from('teachers').update({ assignments: updatedAssignments }).eq('id', teacherId);
+        if (tchError) console.error('Error saving password to teachers:', tchError);
+        setTeachers(prev => prev.map(t => t.id === teacherId ? { ...t, assignments: updatedAssignments } : t));
       }
 
-      setTeacherPasswords(updated);
+      setTeacherPasswords(cleanPasswords);
       setEditingTeacherId(null);
       setEditingPasswordVal('');
       alert('تم تحديث كلمة المرور بنجاح');
@@ -571,28 +607,44 @@ const AdminView = () => {
   const handleResetTeacherPassword = async (teacherId) => {
     if (!window.confirm('هل أنت متأكد من رغبتك في مسح كلمة المرور لهذا المعلم؟ سيطلب منه النظام تعيين كلمة مرور جديدة عند دخوله القادم.')) return;
     try {
-      const updated = { ...teacherPasswords };
-      delete updated[teacherId];
-
       const { data: schoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
-      await supabase.from('schools').upsert({
-        phone: currentSchoolPhone,
-        settings: { ...(schoolRecord?.settings || {}), teacher_passwords: updated }
-      }, { onConflict: 'phone' });
-
-      await supabase.from('settings').upsert({
-        key: 'teacher_passwords',
-        value: JSON.stringify(updated)
+      const currentSettings = schoolRecord?.settings || {};
+      const rawCurrentPasswords = currentSettings.teacher_passwords || {};
+      const cleanPasswords = {};
+      Object.keys(rawCurrentPasswords).forEach(k => {
+        const v = rawCurrentPasswords[k];
+        if (v && typeof v === 'string' && v.trim() !== '' && v.trim() !== 'true') {
+          cleanPasswords[k] = v.trim();
+        }
       });
+      Object.keys(teacherPasswords).forEach(k => {
+        const v = teacherPasswords[k];
+        if (v && typeof v === 'string' && v.trim() !== '' && v.trim() !== 'true') {
+          cleanPasswords[k] = v.trim();
+        }
+      });
+      delete cleanPasswords[teacherId];
+
+      const payload = {
+        phone: currentSchoolPhone,
+        settings: { ...currentSettings, teacher_passwords: cleanPasswords }
+      };
+      if (schoolRecord?.name) payload.name = schoolRecord.name;
+      if (schoolRecord?.admin_pin) payload.admin_pin = schoolRecord.admin_pin;
+
+      const { error: schoolError } = await supabase.from('schools').upsert(payload, { onConflict: 'phone' });
+      if (schoolError) console.error('Error resetting password in schools:', schoolError);
 
       const teacher = teachers.find(t => t.id === teacherId);
       if (teacher && teacher.assignments) {
         const updatedAssignments = { ...teacher.assignments };
         delete updatedAssignments._password;
-        await supabase.from('teachers').update({ assignments: updatedAssignments }).eq('id', teacherId);
+        const { error: tchError } = await supabase.from('teachers').update({ assignments: updatedAssignments }).eq('id', teacherId);
+        if (tchError) console.error('Error resetting password in teachers:', tchError);
+        setTeachers(prev => prev.map(t => t.id === teacherId ? { ...t, assignments: updatedAssignments } : t));
       }
 
-      setTeacherPasswords(updated);
+      setTeacherPasswords(cleanPasswords);
       alert('تم مسح كلمة المرور بنجاح.');
     } catch (err) {
       console.error('Error resetting password:', err);
@@ -1118,7 +1170,7 @@ const AdminView = () => {
     try {
       const { data: currentSchoolRecord } = await supabase.from('schools').select('*').eq('phone', currentSchoolPhone).maybeSingle();
 
-      await supabase.from('schools').upsert({
+      const payload = {
         phone: currentSchoolPhone,
         name: schoolName.trim(),
         settings: {
@@ -1128,7 +1180,9 @@ const AdminView = () => {
           school_gender: schoolGender,
           school_contact_phone: schoolPhone.trim()
         }
-      }, { onConflict: 'phone' });
+      };
+      if (currentSchoolRecord?.admin_pin) payload.admin_pin = currentSchoolRecord.admin_pin;
+      await supabase.from('schools').upsert(payload, { onConflict: 'phone' });
 
       setShowSchoolInfoModal(false);
       alert('تم حفظ بيانات المدير والمدرسة بنجاح');
@@ -2182,7 +2236,8 @@ const AdminView = () => {
               {teachers
                 .filter(t => t.name.toLowerCase().includes(passwordSearchQuery.toLowerCase()))
                 .map(teacher => {
-                  const pwd = teacherPasswords[teacher.id] || teacher.assignments?._password || '';
+                  const rawPwd = teacherPasswords[teacher.id] || teacher.assignments?._password || '';
+                  const pwd = (rawPwd && typeof rawPwd === 'string' && rawPwd.trim() !== '' && rawPwd.trim() !== 'true') ? rawPwd.trim() : '';
                   const isRevealed = revealedPasswords[teacher.id];
                   const isEditing = editingTeacherId === teacher.id;
 
