@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useParams, Navigate } from 'react-router-dom';
 import { 
   Plus, Trash2, Save, Download, Upload,
@@ -1272,6 +1272,94 @@ const AdminView = () => {
     if (trimmed.startsWith('الفصل')) return trimmed;
     return `الفصل ${trimmed}`;
   };
+
+  // دالة حساب تواريخ الأيام الهجرية المتسلسلة (الأحد - الخميس) بناءً على تقويم أم القرى مع احترام الأشهر 29 أو 30 يوماً
+  const getWeekHijriDayDates = (baseDateStr) => {
+    if (!baseDateStr) return {};
+    try {
+      const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+      const clean = String(baseDateStr)
+        .replace(/[٠-٩]/g, d => arabicDigits.indexOf(d))
+        .replace(/هـ/g, '')
+        .trim();
+
+      let hYear, hMonth, hDay;
+      if (clean.includes('-')) {
+        const parts = clean.split('-').map(p => parseInt(p, 10));
+        if (parts.length === 3 && parts.every(n => !isNaN(n))) {
+          hYear = parts[0];
+          hMonth = parts[1];
+          hDay = parts[2];
+        }
+      } else if (clean.includes('/')) {
+        const parts = clean.split('/').map(p => parseInt(p, 10));
+        if (parts.length === 3 && parts.every(n => !isNaN(n))) {
+          if (parts[0] > 1000) {
+            hYear = parts[0];
+            hMonth = parts[1];
+            hDay = parts[2];
+          } else {
+            hYear = parts[2];
+            hMonth = parts[1];
+            hDay = parts[0];
+          }
+        }
+      }
+
+      if (!hYear || !hMonth || !hDay) return {};
+
+      // تحويل التاريخ الهجري إلى ميلادي مع الضبط الدقيق لتقويم أم القرى
+      const approxGYear = Math.round(hYear * 0.970229 + 621.57);
+      let gDate = new Date(approxGYear, 0, 1, 12, 0, 0);
+
+      const getH = (date) => {
+        const p = new Intl.DateTimeFormat('en-US-u-ca-islamic-umalqura', {
+          day: 'numeric', month: 'numeric', year: 'numeric'
+        }).formatToParts(date);
+        return {
+          year: parseInt(p.find(x => x.type === 'year')?.value, 10),
+          month: parseInt(p.find(x => x.type === 'month')?.value, 10),
+          day: parseInt(p.find(x => x.type === 'day')?.value, 10)
+        };
+      };
+
+      let curr = getH(gDate);
+      let diff = (hYear - curr.year) * 354 + (hMonth - curr.month) * 29.5 + (hDay - curr.day);
+      gDate.setDate(gDate.getDate() + Math.round(diff));
+
+      for (let i = 0; i < 25; i++) {
+        curr = getH(gDate);
+        if (curr.year === hYear && curr.month === hMonth && curr.day === hDay) break;
+        const delta = (hYear - curr.year) * 354 + (hMonth - curr.month) * 30 + (hDay - curr.day);
+        gDate.setDate(gDate.getDate() + (delta === 0 ? (hDay > curr.day ? 1 : -1) : delta));
+      }
+
+      // حساب أيام الأسبوع الخمسة (الأحد، الاثنين، الثلاثاء، الأربعاء، الخميس) بالتسلسل
+      const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu'];
+      const result = {};
+
+      dayKeys.forEach((key, offset) => {
+        const nextGDate = new Date(gDate.getTime() + offset * 86400000);
+        const parts = new Intl.DateTimeFormat('en-US-u-ca-islamic-umalqura', {
+          day: 'numeric', month: 'numeric'
+        }).formatToParts(nextGDate);
+        const dayVal = parts.find(p => p.type === 'day')?.value;
+        const monthVal = parts.find(p => p.type === 'month')?.value;
+        if (dayVal && monthVal) {
+          result[key] = `${dayVal}/${monthVal}`;
+        }
+      });
+
+      return result;
+    } catch (err) {
+      console.warn('Error calculating Hijri day dates:', err);
+      return {};
+    }
+  };
+
+  const weekHijriDayDates = useMemo(() => {
+    return getWeekHijriDayDates(exportConfig.hijriDate);
+  }, [exportConfig.hijriDate]);
 
   const getFullClassData = (classId = exportConfig.classId) => {
     if (!classId || classId === 'all') return null;
@@ -2710,7 +2798,7 @@ const AdminView = () => {
               <table className="w-full border-collapse plan-table text-[10.2px]">
                 <thead>
                   <tr className="bg-[#2b4c7e] text-white">
-                    <th className="p-1 w-5 text-[9px]">اليوم</th>
+                    <th className="p-1 w-7 text-[9px]">اليوم</th>
                     <th className="p-1.5 w-6 text-[10.5px]">م</th>
                     <th className="p-1.5 w-20 text-[10.5px]">المادة</th>
                     <th className="p-1.5 w-56 text-[10.5px]">الدرس</th>
@@ -2729,8 +2817,8 @@ const AdminView = () => {
                         return (
                           <tr key={`${day.id}_${period}`} className={isLastRow ? 'border-b-4 border-[#2b4c7e]' : ''}>
                             {idx === 0 && (
-                              <td rowSpan={arr.length} className="day-header p-0 text-center font-black text-[13px] bg-slate-50 border-l-2 w-5">
-                                {day.name}
+                              <td rowSpan={arr.length} className="day-header p-0 text-center font-black text-[12px] bg-slate-50 border-l-2 w-7">
+                                {weekHijriDayDates[day.id] ? `${day.name} ${weekHijriDayDates[day.id]}` : day.name}
                               </td>
                             )}
                             <td className="py-1 px-1.5 text-center font-bold border-r-0">{period}</td>
