@@ -1279,18 +1279,71 @@ const AdminView = () => {
     if (!cls) return null;
 
     // Aggregate plans from all teachers linked to this class
+    // بناء خطط الحصص بناءً على الجدول الحالي والمعلم المسند له كل مادة لتجنب تداخل الحصص عند التعديل
     const aggregatedPlans = {};
     const relevantPlans = weeklyPlans.filter(p => p.class_id === cls.id);
-    
-    relevantPlans.forEach(plan => {
-      const draftData = plan.week_data || {};
-      Object.keys(draftData).forEach(day => {
-        if (!aggregatedPlans[day]) aggregatedPlans[day] = {};
-        Object.keys(draftData[day]).forEach(period => {
-          if (!aggregatedPlans[day][period]) {
-            aggregatedPlans[day][period] = draftData[day][period];
-          }
+
+    // فرز الخطط حسب الأحدث تاريخياً للأولوية
+    const sortedPlans = [...relevantPlans].sort((a, b) => {
+      const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    const normSubj = (s) => (s || '').trim().replace(/[إأآا]/g, 'ا').replace(/ة/g, 'ه').toLowerCase();
+
+    DAYS.forEach(day => {
+      aggregatedPlans[day.id] = {};
+      PERIODS.forEach(period => {
+        const rawSubject = cls.schedule?.[`${day.id}_${period}`];
+        if (!rawSubject || typeof rawSubject !== 'string') return;
+        const currentSubject = rawSubject.trim();
+        if (!currentSubject || currentSubject === '-') return;
+
+        // البحث عن المعلمين المسند لهم هذه المادة في هذا الفصل
+        const assignedTeachers = teachers.filter(t => {
+          const tSubjects = t.assignments?.[cls.id] || [];
+          return tSubjects.some(s => {
+            if (!s || typeof s !== 'string') return false;
+            const trimmedS = s.trim();
+            return trimmedS.toLowerCase() === currentSubject.toLowerCase() || normSubj(trimmedS) === normSubj(currentSubject);
+          });
         });
+        const assignedTeacherIds = new Set(assignedTeachers.map(t => t.id));
+
+        let matchedPlanData = null;
+
+        if (assignedTeacherIds.size > 0) {
+          // جلب الخطة فقط من المعلم المسند له المادة الحالية
+          for (const plan of sortedPlans) {
+            if (assignedTeacherIds.has(plan.teacher_id)) {
+              const cell = plan.week_data?.[day.id]?.[period];
+              if (cell && (cell.title?.trim() || cell.objective?.trim() || cell.homework?.trim())) {
+                matchedPlanData = cell;
+                break;
+              }
+            }
+          }
+        } else {
+          // في حال عدم وجود إسناد مسبق للمادة:
+          // لا نقبل خطة من معلم مسند له مواد أخرى في هذا الفصل لمنع تداخل الحصص القديمة
+          for (const plan of sortedPlans) {
+            const t = teachers.find(tch => tch.id === plan.teacher_id);
+            const tSubjects = t?.assignments?.[cls.id] || [];
+            const hasOtherSubjects = tSubjects.some(s => s && typeof s === 'string' && normSubj(s) !== normSubj(currentSubject));
+            if (!hasOtherSubjects) {
+              const cell = plan.week_data?.[day.id]?.[period];
+              if (cell && (cell.title?.trim() || cell.objective?.trim() || cell.homework?.trim())) {
+                matchedPlanData = cell;
+                break;
+              }
+            }
+          }
+        }
+
+        if (matchedPlanData) {
+          aggregatedPlans[day.id][period] = matchedPlanData;
+        }
       });
     });
 
