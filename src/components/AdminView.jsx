@@ -7,7 +7,7 @@ import {
   Star, Bookmark, Smartphone, Monitor, Check, Sparkles, RefreshCw, Home, Share2, Copy, School,
   Clock, AlertTriangle
 } from 'lucide-react';
-import HijriDatePicker from '@mk01/react-hijri-date-picker';
+import HijriDatePicker from './HijriDatePicker';
 import * as XLSX from 'xlsx';
 
 import { supabase } from '../supabaseClient';
@@ -1346,7 +1346,8 @@ const AdminView = () => {
         const dayVal = parts.find(p => p.type === 'day')?.value;
         const monthVal = parts.find(p => p.type === 'month')?.value;
         if (dayVal && monthVal) {
-          result[key] = `${dayVal}/${monthVal}`;
+          // الترتيب اليوم ثم الشهر مع مراعاة اتجاه النص العربي (RTL) ليظهر بصرياً: اليوم / الشهر
+          result[key] = `${monthVal}/${dayVal}`;
         }
       });
 
