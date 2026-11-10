@@ -304,6 +304,60 @@ const AdminView = () => {
       setWeeklyPlans(plansData || []);
       setTeacherPasswords(cleanPasswordsObj);
       setTeacherLastLogins(lastLoginsObj || {});
+
+      // تجميع كافة المواد الدراسية الخاصة بالمدرسة من الفصول والمعلمين وإعدادات المدرسة
+      const extractedSubjects = new Set(SUBJECTS);
+
+      if (schoolRecord?.settings?.subjects && Array.isArray(schoolRecord.settings.subjects)) {
+        schoolRecord.settings.subjects.forEach(s => {
+          if (s && typeof s === 'string' && s.trim()) extractedSubjects.add(s.trim());
+        });
+      }
+
+      try {
+        const saved = localStorage.getItem(`school_subjects_${currentSchoolPhone}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) parsed.forEach(s => s && extractedSubjects.add(s.trim()));
+        }
+      } catch {}
+
+      (clsData || []).forEach(c => {
+        let sched = c.schedule || {};
+        if (typeof sched === 'string') {
+          try { sched = JSON.parse(sched); } catch {}
+        }
+        Object.values(sched).forEach(val => {
+          let sName = '';
+          if (typeof val === 'string') sName = val.trim();
+          else if (val && typeof val === 'object') sName = (val.subject || '').trim();
+          if (sName && sName !== '-' && sName !== '🚫' && sName !== '—') {
+            extractedSubjects.add(sName);
+          }
+        });
+      });
+
+      (tchData || []).forEach(t => {
+        const assignments = t.assignments && typeof t.assignments === 'object' ? t.assignments : {};
+        Object.keys(assignments).forEach(k => {
+          if (k.startsWith('_')) return;
+          const subs = assignments[k];
+          if (Array.isArray(subs)) {
+            subs.forEach(s => {
+              if (s && typeof s === 'string' && s.trim()) {
+                extractedSubjects.add(s.trim());
+              }
+            });
+          }
+        });
+      });
+
+      const updatedSubjects = Array.from(extractedSubjects);
+      setSchoolSubjects(updatedSubjects);
+      try {
+        localStorage.setItem(`school_subjects_${currentSchoolPhone}`, JSON.stringify(updatedSubjects));
+      } catch {}
+
       trackAdminVisit(currentSchoolPhone, schoolRecord);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -940,8 +994,24 @@ const AdminView = () => {
   };
 
   const openScheduleEditor = (cls) => {
+    let sched = cls.schedule || {};
+    if (typeof sched === 'string') {
+      try { sched = JSON.parse(sched); } catch {}
+    }
     setEditingScheduleClassId(cls.id);
-    setTempSchedule(cls.schedule || {});
+    setTempSchedule(sched || {});
+
+    // إضافة أي مواد موجودة في جدول هذا الفصل إلى قائمة المواد المتاحة
+    const schedSubjects = Object.values(sched || {}).map(v => typeof v === 'string' ? v.trim() : (v?.subject || '').trim()).filter(Boolean);
+    if (schedSubjects.length > 0) {
+      setSchoolSubjects(prev => {
+        const set = new Set(prev);
+        schedSubjects.forEach(s => set.add(s));
+        const next = Array.from(set);
+        try { localStorage.setItem(`school_subjects_${currentSchoolPhone}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
   };
 
   const saveSchedule = async () => {
@@ -2727,18 +2797,25 @@ const AdminView = () => {
                       <td className="p-4 border border-slate-200 text-right font-bold text-blue-600 bg-slate-50/50">
                         {day.name}
                       </td>
-                      {PERIODS.map(period => (
-                        <td key={period} className="p-2 border border-slate-200">
-                          <select
-                            value={tempSchedule[`${day.id}_${period}`] || ''}
-                            onChange={(e) => updateTempSchedule(day.id, period, e.target.value)}
-                            className="w-full p-2 bg-gray-50 border-none rounded-lg text-[10px] font-bold text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          >
-                            <option value="">-- اختر المادة --</option>
-                            {schoolSubjects.map(sub => <option key={sub} value={sub}>{sub}</option>)}
-                          </select>
-                        </td>
-                      ))}
+                      {PERIODS.map(period => {
+                        const cellVal = tempSchedule[`${day.id}_${period}`] || '';
+                        const availableOptions = (cellVal && !schoolSubjects.includes(cellVal))
+                          ? [cellVal, ...schoolSubjects]
+                          : schoolSubjects;
+
+                        return (
+                          <td key={period} className="p-2 border border-slate-200">
+                            <select
+                              value={cellVal}
+                              onChange={(e) => updateTempSchedule(day.id, period, e.target.value)}
+                              className="w-full p-2 bg-gray-50 border-none rounded-lg text-[10px] font-bold text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            >
+                              <option value="">-- اختر المادة --</option>
+                              {availableOptions.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                            </select>
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
@@ -4078,7 +4155,11 @@ const AdminView = () => {
                   {classes.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[44vh] overflow-y-auto p-1">
                       {classes.map(c => {
-                        const scheduledCount = Object.values(c.schedule || {}).filter(Boolean).length;
+                        let clsSched = c.schedule || {};
+                        if (typeof clsSched === 'string') {
+                          try { clsSched = JSON.parse(clsSched); } catch {}
+                        }
+                        const scheduledCount = Object.values(clsSched).filter(v => v && v !== '-' && v !== '🚫').length;
                         const leaderTeacher = teachers.find(t => (Array.isArray(t.leader_of) ? t.leader_of : []).includes(c.id));
 
                         return (
